@@ -37,6 +37,30 @@ CPU, RAM y discos del host con `psutil`, cada `POLL_INTERVAL_S` segundos (30).
 - **Márgenes de resolución.** Para dar una alerta por resuelta se exige un margen bajo el
   umbral, y así no salta y se resuelve con cada lectura.
 
+### Cabeza 2 — Contenedores
+
+Estado de los contenedores con el SDK oficial de Docker, cada `POLL_INTERVAL_S` segundos. Solo
+lee: nunca arranca, para ni reinicia nada.
+
+| Alerta | Nivel | Cuándo salta | Cuándo se resuelve |
+|--------|-------|--------------|--------------------|
+| Caída | 🔴 | Un contenedor que Cerbero vio en marcha pasa a `exited`/`dead` con un código de error, o lo mata el kernel por falta de memoria (OOM) | Vuelve a estar en marcha |
+| Parada | 🟡 | Igual, pero por un `docker stop`/`compose stop`/`down` o con salida limpia (código 0 o 143) | Vuelve a estar en marcha |
+| Bucle de reinicios | 🔴 | Más de `RESTART_LOOP_THRESHOLD` reinicios en `RESTART_LOOP_WINDOW_MIN` minutos | Una ventana entera sin reinicios |
+| Unhealthy | 🟡 | Su healthcheck lo marca `unhealthy` (con la salida de la última comprobación) | Vuelve a `healthy` |
+| Docker no responde | 🔴 | El socket de Docker falla dos lecturas seguidas | Docker responde de nuevo |
+
+- **Los parados de antes no cuentan.** Los contenedores que ya estaban parados cuando arrancó
+  Cerbero no generan alerta; solo los que caen mientras Cerbero está corriendo.
+- **Parada manual vs. caída.** El código de salida no basta para distinguirlas: un proceso
+  que ignora SIGTERM sale con 137 también en un `docker stop`. Por eso Cerbero consulta los
+  eventos `stop` de Docker entre lectura y lectura: si hubo uno, es una parada a mano (🟡); un
+  `docker kill` o un fallo del proceso es una caída (🔴).
+- **Recordatorios.** Mientras un contenedor siga caído, la alerta crítica se recuerda tras el
+  cooldown; una parada a mano se avisa una sola vez.
+- Si se borra un contenedor, sus alertas se cierran. `CONTAINERS_IGNORE` excluye contenedores
+  por nombre (p. ej. tareas puntuales que terminan solas).
+
 ## Alertas
 
 Cada cabeza dispara alertas con uno de tres niveles: `info` 🟢, `warning` 🟡 y `critical` 🔴.
@@ -89,6 +113,9 @@ en la API). Una variable vacía equivale a no definirla.
 | `DISK_THRESHOLD` | `85` | % de uso de disco a partir del cual se alerta |
 | `DISKS` | `/,/srv/archivos,/srv/extra` | Puntos de montaje vigilados, separados por comas |
 | `HOST_ROOT` | `/` | Dónde ve Cerbero la raíz del host (`/hostfs` en Docker, ya puesto en el compose) |
+| `RESTART_LOOP_THRESHOLD` | `5` | Reinicios (más de) que cuentan como bucle |
+| `RESTART_LOOP_WINDOW_MIN` | `10` | Ventana en minutos para contar reinicios |
+| `CONTAINERS_IGNORE` | — | Contenedores que no generan alertas, separados por comas |
 | `LOG_LEVEL` | `INFO` | Nivel del registro |
 
 ## Desarrollo
