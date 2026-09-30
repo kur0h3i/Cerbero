@@ -131,6 +131,56 @@ Servidor: server-kuro · 2026-09-30 03:44:05
 - **En memoria.** Las alertas activas se conservan todas y, de las resueltas, las últimas 50.
   Si Cerbero se reinicia, el historial se pierde.
 
+## API
+
+Sin autenticación (Cerbero solo es accesible dentro de la LAN y la tailnet) y de solo lectura.
+Documentación interactiva en `/api/docs`.
+
+| Método | Ruta | Respuesta |
+|--------|------|-----------|
+| GET | `/api/health` | `{status, heads: {recursos, contenedores, accesos}}` |
+| GET | `/api/alerts` | `{connected: true, alerts: [...]}`; `?active=true` deja solo las activas |
+| GET | `/api/status` | `{cpu_pct, ram_free_gb, ram_total_gb, disks: [...], containers: [...]}` |
+
+`/api/health` responde `status: "ok"` si las tres cabezas funcionan y `"degraded"` si alguna no
+(p. ej., la de accesos si no puede leer `auth.log`); cada cabeza, `true` o `false`.
+
+`/api/alerts` es lo que consume Dis. Primero van las activas y luego las resueltas, de la más
+reciente a la más antigua:
+
+```json
+{
+  "connected": true,
+  "alerts": [
+    {
+      "id": "3f9a1c2b7d10",
+      "key": "recursos:ram",
+      "level": "critical",
+      "head": "recursos",
+      "message": "RAM libre 0.8 GB (umbral 1.5 GB)",
+      "timestamp": "2026-09-30T03:14:22+02:00",
+      "active": true,
+      "resolved_at": null
+    }
+  ]
+}
+```
+
+`/api/status` es la última lectura de las cabezas 1 y 2 (valores `null` durante los primeros
+segundos tras arrancar):
+
+```json
+{
+  "cpu_pct": 12.6,
+  "ram_free_gb": 3.9,
+  "ram_total_gb": 11.6,
+  "disks": [
+    {"mount": "/", "total_gb": 234.0, "used_gb": 120.5, "free_gb": 101.6, "percent": 54.3, "error": null}
+  ],
+  "containers": [{"name": "jellyfin", "status": "running", "health": "healthy", "restarts": 0}]
+}
+```
+
 ## Variables de entorno
 
 Todas son opcionales salvo las de Telegram (sin ellas las alertas solo quedan en el registro y
