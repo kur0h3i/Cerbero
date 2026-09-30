@@ -15,6 +15,28 @@ todo en seguridad. Expone una API REST que consume [Dis](https://github.com/kur0
 > **En construcción.** Orden de implementación: núcleo (config, almacén de alertas y
 > Telegram) → cabeza Recursos → cabeza Contenedores → cabeza Accesos → API → Docker.
 
+## Qué vigila
+
+### Cabeza 1 — Recursos
+
+CPU, RAM y discos del host con `psutil`, cada `POLL_INTERVAL_S` segundos (30).
+
+| Alerta | Nivel | Cuándo salta | Cuándo se resuelve |
+|--------|-------|--------------|--------------------|
+| CPU sostenida | 🟡 | La media del intervalo supera `CPU_THRESHOLD` en `CPU_SUSTAINED` lecturas seguidas (un pico suelto no cuenta) | Baja 5 puntos por debajo del umbral |
+| RAM baja | 🔴 | La RAM disponible cae por debajo de `RAM_FREE_MIN_GB` | Sube 0.25 GB por encima del umbral |
+| Disco lleno | 🟡 / 🔴 ≥ 95 % | Un punto de montaje de `DISKS` supera `DISK_THRESHOLD` | Baja 2 puntos por debajo del umbral |
+| Disco ausente | 🟡 | Un punto de montaje no existe o no tiene su disco montado | Vuelve a estar montado |
+
+- **RAM disponible, no "libre".** Se usa la memoria *disponible* (`MemAvailable`, lo que
+  `free -h` llama *available*), que incluye la caché que el kernel libera cuando hace falta. La
+  "libre" a secas no la cuenta y daría falsos críticos.
+- **Discos sin montar.** Si un disco no se monta, su punto de montaje es un directorio vacío
+  del disco raíz: medirlo daría el uso del raíz y lo que se escribiera ahí lo iría llenando. Por
+  eso Cerbero comprueba que cada punto de montaje (salvo `/`) lo sea de verdad.
+- **Márgenes de resolución.** Para dar una alerta por resuelta se exige un margen bajo el
+  umbral, y así no salta y se resuelve con cada lectura.
+
 ## Alertas
 
 Cada cabeza dispara alertas con uno de tres niveles: `info` 🟢, `warning` 🟡 y `critical` 🔴.
@@ -60,6 +82,13 @@ en la API). Una variable vacía equivale a no definirla.
 | `TZ` | `Europe/Madrid` | Zona horaria de las fechas |
 | `ALERT_COOLDOWN_MIN` | `30` | Minutos antes de reenviar una alerta con la misma clave |
 | `NOTIFY_STARTUP` | `true` | Aviso 🟢 al arrancar (sirve para enterarse de un reinicio) |
+| `POLL_INTERVAL_S` | `30` | Segundos entre lecturas de recursos y contenedores |
+| `CPU_THRESHOLD` | `85` | % de CPU a partir del cual una lectura es alta |
+| `CPU_SUSTAINED` | `3` | Lecturas altas seguidas para alertar |
+| `RAM_FREE_MIN_GB` | `1.5` | GB de RAM disponible por debajo de los cuales se alerta |
+| `DISK_THRESHOLD` | `85` | % de uso de disco a partir del cual se alerta |
+| `DISKS` | `/,/srv/archivos,/srv/extra` | Puntos de montaje vigilados, separados por comas |
+| `HOST_ROOT` | `/` | Dónde ve Cerbero la raíz del host (`/hostfs` en Docker, ya puesto en el compose) |
 | `LOG_LEVEL` | `INFO` | Nivel del registro |
 
 ## Desarrollo
