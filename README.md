@@ -61,6 +61,41 @@ lee: nunca arranca, para ni reinicia nada.
 - Si se borra un contenedor, sus alertas se cierran. `CONTAINERS_IGNORE` excluye contenedores
   por nombre (p. ej. tareas puntuales que terminan solas).
 
+### Cabeza 3 — Accesos
+
+Sigue `/var/log/auth.log` como `tail -f` (lee solo lo nuevo, nunca el fichero entero) en un
+hilo aparte, y analiza las líneas de sshd con expresiones regulares. No depende de fail2ban.
+
+| Alerta | Nivel | Cuándo salta | Cuándo se resuelve |
+|--------|-------|--------------|--------------------|
+| Fuerza bruta | 🔴 IP externa / 🟡 IP de confianza | Más de `BRUTE_FORCE_THRESHOLD` fallos de login desde una IP en `BRUTE_FORCE_WINDOW_MIN` minutos | Una ventana entera sin fallos desde esa IP |
+| Login externo | 🔴 | Un login SSH aceptado desde fuera de los rangos de confianza | Se cierra solo pasado el cooldown (es un evento, no una condición) |
+| Intentos externos | 🟡 | Intentos fallidos con un usuario válido (que existe) desde fuera de los rangos de confianza | Una ventana entera sin intentos |
+| Log ilegible | 🟡 | `auth.log` no existe o no se puede leer: la cabeza está ciega | Vuelve a poder leerse |
+
+Rangos de confianza (`TRUSTED_NETWORKS`, definidos en `app/config.py`): LAN
+`192.168.1.0/24`, WireGuard `10.0.0.0/24` y Tailscale `100.64.0.0/10`. El loopback siempre
+es de confianza.
+
+- **Qué es un fallo.** Cada línea `Failed <método>` y, si una conexión no tuvo ninguna, su
+  cierre antes de autenticarse (`Connection closed by authenticating user ...`), que es lo
+  único que deja un intento fallido con clave pública. No se cuenta el sondeo `Failed none` que
+  hacen los clientes al empezar.
+- **Botnets.** Los intentos externos con usuario válido van en una sola alerta agregada (con
+  cuántos intentos y desde cuántas IPs), no en una por IP. La memoria está acotada: como mucho
+  se siguen 5000 IPs a la vez.
+- **Un usuario no puede falsear la IP.** El nombre de usuario lo elige quien se conecta y puede
+  contener, p. ej., `from 192.168.1.5 port 1`. El parser se queda con la última IP de la línea,
+  que es la que escribe sshd. Las líneas de otros programas que imitan a sshd se ignoran.
+- **Rotación.** Se detecta tanto la rotación con fichero nuevo (lo normal en logrotate) como
+  `copytruncate`. Al arrancar se empieza por el final: el histórico no genera alertas.
+- **Formato de Debian 13.** OpenSSH 10 registra como `sshd-session` en vez de `sshd`, y
+  rsyslog usa fechas RFC 3339; se aceptan ambos formatos. Para comprobar qué escribe tu
+  servidor: `grep -E 'sshd(-session)?\[' /var/log/auth.log | tail`.
+- **Hace falta rsyslog.** Debian 13 no lo instala por defecto (todo va a journald) y entonces
+  `/var/log/auth.log` no existe. Cerbero lo avisa con la alerta *Log ilegible*; se arregla con
+  `sudo apt install rsyslog`.
+
 ## Alertas
 
 Cada cabeza dispara alertas con uno de tres niveles: `info` 🟢, `warning` 🟡 y `critical` 🔴.
@@ -116,6 +151,10 @@ en la API). Una variable vacía equivale a no definirla.
 | `RESTART_LOOP_THRESHOLD` | `5` | Reinicios (más de) que cuentan como bucle |
 | `RESTART_LOOP_WINDOW_MIN` | `10` | Ventana en minutos para contar reinicios |
 | `CONTAINERS_IGNORE` | — | Contenedores que no generan alertas, separados por comas |
+| `AUTH_LOG` | `/var/log/auth.log` | Log de autenticación del host |
+| `BRUTE_FORCE_THRESHOLD` | `10` | Fallos (más de) desde una IP que cuentan como fuerza bruta |
+| `BRUTE_FORCE_WINDOW_MIN` | `5` | Ventana en minutos para contar fallos |
+| `TRUSTED_NETWORKS` | `192.168.1.0/24,10.0.0.0/24,100.64.0.0/10` | Rangos de confianza, separados por comas (sustituyen a los de `app/config.py`) |
 | `LOG_LEVEL` | `INFO` | Nivel del registro |
 
 ## Desarrollo
