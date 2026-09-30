@@ -12,8 +12,80 @@ todo en seguridad. Expone una API REST que consume [Dis](https://github.com/kur0
 > Cerbero es el perro de tres cabezas que guarda el tercer círculo del Infierno; aquí guarda
 > el servidor ([por qué el nombre](#el-nombre-y-el-logo)).
 
-> **En construcción.** Orden de implementación: núcleo (config, almacén de alertas y
-> Telegram) → cabeza Recursos → cabeza Contenedores → cabeza Accesos → API → Docker.
+- **Recursos**: CPU sostenida, RAM baja (el punto más ajustado del servidor), discos llenos o
+  sin montar.
+- **Contenedores**: caídas (distinguiendo una parada a mano de un fallo), bucles de reinicio y
+  healthchecks `unhealthy`.
+- **Accesos**: fuerza bruta por SSH, logins aceptados desde fuera de la LAN/WireGuard/Tailscale
+  e intentos con usuarios válidos desde fuera. Sin fail2ban.
+- **Avisos que no hacen spam**: cooldown por alerta, recordatorio si el problema persiste y
+  🟢 [RESUELTO] cuando se normaliza.
+- **Ligero y de solo lectura**: un contenedor de ~50 MiB de RAM sin privilegios que nunca
+  modifica Docker ni el host.
+
+## Índice
+
+- [Puesta en marcha](#puesta-en-marcha)
+- [Conectarlo con Dis](#conectarlo-con-dis)
+- [Qué vigila](#qué-vigila)
+- [Alertas](#alertas)
+- [Configuración](#configuración)
+- [Seguridad](#seguridad)
+- [Solución de problemas](#solución-de-problemas)
+- [API](#api)
+- [Desarrollo](#desarrollo)
+- [El nombre y el logo](#el-nombre-y-el-logo)
+
+## Puesta en marcha
+
+**Requisitos:** Linux con Docker Engine y Docker Compose v2, y **rsyslog** para que exista
+`/var/log/auth.log` (Debian 13 no lo instala por defecto):
+
+```bash
+ls -l /var/log/auth.log || sudo apt install rsyslog
+```
+
+1. **Crea el bot de Telegram.** Habla con [@BotFather](https://t.me/BotFather), `/newbot`, y
+   guarda el token. Escríbele cualquier cosa a tu bot y saca tu `chat_id` de
+   `https://api.telegram.org/bot<TOKEN>/getUpdates` (campo `message.chat.id`).
+2. **Configura y arranca:**
+
+   ```bash
+   git clone https://github.com/kur0h3i/Cerbero.git
+   cd Cerbero
+   cp .env.example .env        # rellena TELEGRAM_TOKEN y TELEGRAM_CHAT_ID
+   docker compose up -d --build
+   ```
+
+3. **Comprueba** que está en guardia. En unos segundos el contenedor aparece como `healthy` y
+   llega a Telegram el aviso 🟢 *Cerbero en guardia*:
+
+   ```bash
+   docker compose ps                        # STATUS: Up … (healthy)
+   curl http://localhost:9666/api/health    # {"status":"ok","heads":{…: true}}
+   docker stats --no-stream cerbero         # MEM USAGE ~50 MiB / 80 MiB
+   ```
+
+Para probar la cabeza de accesos sin esperar a un ataque, desde otro equipo de la LAN intenta
+entrar 11 veces con un usuario que no existe:
+
+```bash
+for i in $(seq 11); do ssh -o BatchMode=yes -o ConnectTimeout=3 noexiste@192.168.1.60 true; done
+```
+
+Llega un 🟡 *Fuerza bruta SSH* (amarillo porque la IP es de confianza; desde fuera sería 🔴), y
+un 🟢 [RESUELTO] a los 5 minutos.
+
+## Conectarlo con Dis
+
+Dis ya consulta `GET {CERBERO_URL}/api/alerts`. En el `.env` de Dis:
+
+```bash
+CERBERO_URL=http://192.168.1.60:9666
+```
+
+Si Cerbero está caído, Dis no puede conectar y muestra «Cerbero no conectado»; no hace falta
+nada más.
 
 ## Qué vigila
 
@@ -86,7 +158,7 @@ es de confianza.
 - **Memoria acotada durante un ataque.** Se siguen como mucho 2000 IPs a la vez (se descarta la
   que lleva más tiempo sin fallar, nunca el atacante activo) y 200 marcas de tiempo por IP (a
   partir de ahí el mensaje dice «200+ fallos»). Con una ráfaga de 63 000 líneas desde 6000 IPs,
-  Cerbero pasa de 61 a 65 MB.
+  el contenedor pasa de ~49 a ~52 MiB.
 - **Un usuario no puede falsear la IP.** El nombre de usuario lo elige quien se conecta y puede
   contener, p. ej., `from 192.168.1.5 port 1`. El parser se queda con la última IP de la línea,
   que es la que escribe sshd. Las líneas de otros programas que imitan a sshd se ignoran.
@@ -130,6 +202,87 @@ Servidor: server-kuro · 2026-09-30 03:44:05
   igualmente en la API.
 - **En memoria.** Las alertas activas se conservan todas y, de las resueltas, las últimas 50.
   Si Cerbero se reinicia, el historial se pierde.
+
+## Configuración
+
+### Variables de entorno (`.env`)
+
+Todas son opcionales salvo las de Telegram (sin ellas las alertas solo quedan en el registro y
+en la API). Una variable vacía equivale a no definirla. `.env.example` las documenta todas.
+
+| Variable | Por defecto | Qué hace |
+|----------|-------------|----------|
+| `CERBERO_PORT` | `9666` | Puerto del host en el que se publica la API |
+| `TELEGRAM_TOKEN` | — | Token del bot (de @BotFather) |
+| `TELEGRAM_CHAT_ID` | — | Chat al que se envían las alertas |
+| `SERVER_NAME` | `server-kuro` | Nombre del servidor en los mensajes |
+| `TZ` | `Europe/Madrid` | Zona horaria de las fechas |
+| `ALERT_COOLDOWN_MIN` | `30` | Minutos antes de reenviar una alerta con la misma clave |
+| `NOTIFY_STARTUP` | `true` | Aviso 🟢 al arrancar (sirve para enterarse de un reinicio) |
+| `POLL_INTERVAL_S` | `30` | Segundos entre lecturas de recursos y contenedores |
+| `CPU_THRESHOLD` | `85` | % de CPU a partir del cual una lectura es alta |
+| `CPU_SUSTAINED` | `3` | Lecturas altas seguidas para alertar |
+| `RAM_FREE_MIN_GB` | `1.5` | GB de RAM disponible por debajo de los cuales se alerta |
+| `DISK_THRESHOLD` | `85` | % de uso de disco a partir del cual se alerta |
+| `DISKS` | `/,/srv/archivos,/srv/extra` | Puntos de montaje vigilados, separados por comas |
+| `HOST_ROOT` | `/` | Dónde ve Cerbero la raíz del host (`/hostfs` en Docker, ya puesto en el compose) |
+| `RESTART_LOOP_THRESHOLD` | `5` | Reinicios (más de) que cuentan como bucle |
+| `RESTART_LOOP_WINDOW_MIN` | `10` | Ventana en minutos para contar reinicios |
+| `CONTAINERS_IGNORE` | — | Contenedores que no generan alertas, separados por comas |
+| `AUTH_LOG` | `/var/log/auth.log` | Log de autenticación del host |
+| `BRUTE_FORCE_THRESHOLD` | `10` | Fallos (más de) desde una IP que cuentan como fuerza bruta |
+| `BRUTE_FORCE_WINDOW_MIN` | `5` | Ventana en minutos para contar fallos |
+| `TRUSTED_NETWORKS` | `192.168.1.0/24,10.0.0.0/24,100.64.0.0/10` | Rangos de confianza, separados por comas (sustituyen a los de `app/config.py`) |
+| `LOG_LEVEL` | `INFO` | Nivel del registro |
+
+### Qué monta el compose
+
+| Montaje | Para qué |
+|---------|----------|
+| `/var/run/docker.sock` (`:ro`) | Cabeza de contenedores: listar, inspeccionar y leer eventos |
+| `/` → `/hostfs` (`:ro`) | Discos (`/srv/archivos` y `/srv/extra` entran por ser submontajes) y `/var/log/auth.log` |
+
+Se monta la raíz y no `auth.log` suelto a propósito: el bind mount de un fichero se queda
+apuntando al viejo cuando logrotate lo rota, y Cerbero dejaría de ver accesos sin avisar.
+
+No hacen falta `pid: host`, `network_mode: host` ni `SYS_PTRACE`: CPU y RAM del host se leen de
+`/proc/stat` y `/proc/meminfo`, que no están aislados por namespace, y las IPs de SSH vienen en
+`auth.log`, que escribe el sshd del host.
+
+## Seguridad
+
+- **Sin privilegios.** `cap_drop: ALL`, `no-new-privileges`, sistema de ficheros de solo
+  lectura y `mem_limit: 80m`. Corre como root dentro del contenedor solo para poder leer
+  `auth.log` (`root:adm 640`) y el socket de Docker (`root:docker 660`), que son de root.
+- **El socket de Docker da control total** de Docker aunque se monte `:ro` (ese `:ro` solo
+  afecta al fichero). Cerbero solo hace llamadas de lectura: listar, inspeccionar y eventos.
+- **La API no tiene autenticación** y es de solo lectura. Publica el puerto 9666 en todas las
+  interfaces: no lo redirijas en el router. Para limitarlo a la LAN y Tailscale, en
+  `docker-compose.yml` cambia la línea de `ports` por
+  `"192.168.1.60:9666:9666"` y `"100.87.200.60:9666:9666"`.
+- **El token de Telegram** va en `.env` (ignorado por git) y nunca aparece en los registros:
+  httpx está silenciado porque escribiría la URL, que lo contiene.
+- **Las entradas de `auth.log` no son de fiar.** El nombre de usuario lo controla quien se
+  conecta; ver *Un usuario no puede falsear la IP* en la [cabeza de accesos](#cabeza-3--accesos).
+
+## Solución de problemas
+
+**`accesos: false` en `/api/health` y alerta «No se puede leer /var/log/auth.log».** Falta
+rsyslog (`sudo apt install rsyslog`) o `AUTH_LOG` apunta a otro sitio. Cerbero lo detecta solo
+en cuanto el fichero aparece.
+
+**No llega nada a Telegram.** Mira `docker compose logs cerbero`: si pone «Telegram no
+configurado», faltan `TELEGRAM_TOKEN` o `TELEGRAM_CHAT_ID`; si pone «Telegram rechazó el
+mensaje (400)», el `chat_id` es incorrecto o no le has escrito antes al bot.
+
+**Alerta «Disco /srv/extra: no está montado».** El disco no se ha montado en el host (revisa
+`/etc/fstab` y `mount | grep srv`) o esa ruta no es un punto de montaje: quítala de `DISKS`.
+
+**Un contenedor que termina solo (un cron, un backup) avisa al acabar.** Añádelo a
+`CONTAINERS_IGNORE`.
+
+**`contenedores: false` y alerta «No se puede consultar Docker».** Comprueba que el socket está
+montado y que Docker funciona (`docker ps` en el host).
 
 ## API
 
@@ -181,35 +334,6 @@ segundos tras arrancar):
 }
 ```
 
-## Variables de entorno
-
-Todas son opcionales salvo las de Telegram (sin ellas las alertas solo quedan en el registro y
-en la API). Una variable vacía equivale a no definirla.
-
-| Variable | Por defecto | Qué hace |
-|----------|-------------|----------|
-| `TELEGRAM_TOKEN` | — | Token del bot (de @BotFather) |
-| `TELEGRAM_CHAT_ID` | — | Chat al que se envían las alertas |
-| `SERVER_NAME` | `server-kuro` | Nombre del servidor en los mensajes |
-| `TZ` | `Europe/Madrid` | Zona horaria de las fechas |
-| `ALERT_COOLDOWN_MIN` | `30` | Minutos antes de reenviar una alerta con la misma clave |
-| `NOTIFY_STARTUP` | `true` | Aviso 🟢 al arrancar (sirve para enterarse de un reinicio) |
-| `POLL_INTERVAL_S` | `30` | Segundos entre lecturas de recursos y contenedores |
-| `CPU_THRESHOLD` | `85` | % de CPU a partir del cual una lectura es alta |
-| `CPU_SUSTAINED` | `3` | Lecturas altas seguidas para alertar |
-| `RAM_FREE_MIN_GB` | `1.5` | GB de RAM disponible por debajo de los cuales se alerta |
-| `DISK_THRESHOLD` | `85` | % de uso de disco a partir del cual se alerta |
-| `DISKS` | `/,/srv/archivos,/srv/extra` | Puntos de montaje vigilados, separados por comas |
-| `HOST_ROOT` | `/` | Dónde ve Cerbero la raíz del host (`/hostfs` en Docker, ya puesto en el compose) |
-| `RESTART_LOOP_THRESHOLD` | `5` | Reinicios (más de) que cuentan como bucle |
-| `RESTART_LOOP_WINDOW_MIN` | `10` | Ventana en minutos para contar reinicios |
-| `CONTAINERS_IGNORE` | — | Contenedores que no generan alertas, separados por comas |
-| `AUTH_LOG` | `/var/log/auth.log` | Log de autenticación del host |
-| `BRUTE_FORCE_THRESHOLD` | `10` | Fallos (más de) desde una IP que cuentan como fuerza bruta |
-| `BRUTE_FORCE_WINDOW_MIN` | `5` | Ventana en minutos para contar fallos |
-| `TRUSTED_NETWORKS` | `192.168.1.0/24,10.0.0.0/24,100.64.0.0/10` | Rangos de confianza, separados por comas (sustituyen a los de `app/config.py`) |
-| `LOG_LEVEL` | `INFO` | Nivel del registro |
-
 ## Desarrollo
 
 ```bash
@@ -217,6 +341,26 @@ python3.12 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 ruff check . && ruff format --check .
 pytest
+
+# Arrancarlo en local, contra el Docker y los discos de tu máquina:
+AUTH_LOG=/var/log/auth.log DISKS=/ uvicorn --factory app.main:create_app --port 9666
+```
+
+### Estructura
+
+```
+app/
+├── main.py              arranque: API + las tres cabezas (asyncio y un hilo)
+├── config.py            umbrales, Telegram y rangos de red de confianza
+├── store.py             AlertStore: activas + últimas 50 resueltas, en memoria
+├── alerter.py           Telegram, cooldown, recordatorios y resolución
+├── api.py               /api/health, /api/alerts, /api/status
+└── heads/
+    ├── recursos.py      cabeza 1: psutil
+    ├── contenedores.py  cabeza 2: Docker SDK
+    └── accesos.py       cabeza 3: tail de auth.log
+tests/                   pytest (sin Docker ni red: todo con dobles)
+assets/                  logo
 ```
 
 ## El nombre y el logo

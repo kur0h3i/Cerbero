@@ -1,0 +1,40 @@
+services:
+  cerbero:
+    build: .
+    image: cerbero:latest
+    container_name: cerbero
+    restart: unless-stopped
+    # Telegram, umbrales... en un fichero .env junto a este (ver .env.example).
+    env_file: .env
+    environment:
+      # Raíz del host montada abajo: de aquí salen los discos y auth.log.
+      HOST_ROOT: /hostfs
+      # También para las fechas del registro (las de Telegram ya usan TZ).
+      TZ: ${TZ:-Europe/Madrid}
+    # Red bridge con el puerto publicado. Las IPs de SSH salen de auth.log (las
+    # escribe el sshd del host), así que no hace falta network_mode: host.
+    # Dis lo alcanza con CERBERO_URL=http://192.168.1.60:9666.
+    ports:
+      - "${CERBERO_PORT:-9666}:9666"
+    volumes:
+      # Solo lectura a nivel de fichero. OJO: el socket da acceso completo a la
+      # API de Docker igualmente; Cerbero solo lista, inspecciona y lee eventos.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Raíz del host en solo lectura: discos (incluidos /srv/archivos y /srv/extra,
+      # que entran por ser submontajes) y /var/log/auth.log. Se monta el
+      # directorio y no el fichero suelto: un bind mount de un fichero se queda
+      # con el viejo cuando logrotate lo rota, y Cerbero dejaría de ver accesos.
+      - /:/hostfs:ro
+    # Sin privilegios: CPU y RAM del host se leen de /proc/stat y /proc/meminfo,
+    # que no están aislados por namespace (no hace falta pid: host ni SYS_PTRACE).
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=8m
+    mem_limit: 80m
+    cpus: 0.25
+    labels:
+      dis.description: "Monitor de recursos, contenedores y accesos de server-kuro"
