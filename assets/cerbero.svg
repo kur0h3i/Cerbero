@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Cerbero">
+  <title>Cerbero</title>
+  <defs>
+    <radialGradient id="cerbero-glow" cx="32" cy="28" r="30" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ef4444" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#ef4444" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="cerbero-fur" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6d28d9"/>
+      <stop offset="1" stop-color="#2e1065"/>
+    </linearGradient>
+    <linearGradient id="cerbero-rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fb923c"/>
+      <stop offset="1" stop-color="#b91c1c"/>
+    </linearGradient>
+    <linearGradient id="cerbero-ember" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#fef08a"/>
+      <stop offset="1" stop-color="#ea580c"/>
+    </linearGradient>
+    <!-- Una cabeza de perro de frente, centrada en (0,0). -->
+    <g id="cerbero-head">
+      <path fill="url(#cerbero-fur)" stroke="url(#cerbero-rim)" stroke-width="1.1" stroke-linejoin="round"
+            d="M-8-15L-3-7.5H3L8-15L10.5-4L11 1L6.5 4L4.5 10.5L0 13L-4.5 10.5L-6.5 4L-11 1L-10.5-4z"/>
+      <path fill="#ea580c" fill-opacity="0.7" d="M-7.4-12.2L-4.6-7.9L-8.9-5.6zM7.4-12.2L4.6-7.9L8.9-5.6z"/>
+      <!-- «Li occhi ha vermigli» (Inf. VI, 16). -->
+      <path fill="url(#cerbero-ember)" d="M-7.5-2.2L-2 0.2L-5.8 1.6zM7.5-2.2L2 0.2L5.8 1.6z"/>
+      <path fill="none" stroke="#a78bfa" stroke-width="0.8" stroke-linecap="round" stroke-opacity="0.6" d="M-1.6 2.5L-1.2 7.5M1.6 2.5L1.2 7.5"/>
+      <path fill="#0a0a0a" d="M-2.4 8.2h4.8L0 11z"/>
+      <path fill="#fef08a" d="M-3.4 10.9l1 2.8 0.8-2.2zM3.4 10.9l-1 2.8-0.8-2.2z"/>
+    </g>
+  </defs>
+  <rect width="64" height="64" rx="12" fill="#0a0a0a"/>
+  <!-- «Cerbero, fiera crudele e diversa, con tre gole caninamente latra» (Inf. VI, 13-14). -->
+  <circle cx="32" cy="28" r="30" fill="url(#cerbero-glow)"/>
+  <!-- La lluvia eterna del tercer círculo (Inf. VI, 7-10). -->
+  <g stroke="#a78bfa" stroke-width="1.8" stroke-linecap="round">
+    <path d="M9 51l-2 4.5M55 51l-2 4.5"/>
+    <path d="M15 56l-1.6 3.6M49 56l-1.6 3.6" stroke-opacity="0.55"/>
+  </g>
+  <!-- Pecho y collar de púas al rojo. -->
+  <path fill="url(#cerbero-fur)" stroke="url(#cerbero-rim)" stroke-width="1.1" stroke-linejoin="round" d="M17.5 30c0 10 2.5 17 6.5 23h16c4-6 6.5-13 6.5-23z"/>
+  <path fill="url(#cerbero-rim)" d="M18.5 43.5q13.5 6 27 0l-1 3.2q-12.5 5.5-25 0z"/>
+  <path fill="#fb923c" d="M22.3 47.8l1.3 3.2 1.4-2.6zM29.2 49.6l1.6 3.3 1.6-3.3zM36 48.4l1.4 2.6 1.3-3.2z"/>
+  <!-- Tres cabezas, tres frentes: recursos, contenedores y accesos. -->
+  <use href="#cerbero-head" transform="translate(13.5 31) rotate(-22) scale(0.86)"/>
+  <use href="#cerbero-head" transform="translate(50.5 31) rotate(22) scale(0.86)"/>
+  <use href="#cerbero-head" transform="translate(32 23.5) scale(1.12)"/>
+</svg>
