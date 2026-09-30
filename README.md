@@ -82,8 +82,11 @@ es de confianza.
   único que deja un intento fallido con clave pública. No se cuenta el sondeo `Failed none` que
   hacen los clientes al empezar.
 - **Botnets.** Los intentos externos con usuario válido van en una sola alerta agregada (con
-  cuántos intentos y desde cuántas IPs), no en una por IP. La memoria está acotada: como mucho
-  se siguen 5000 IPs a la vez.
+  cuántos intentos y desde cuántas IPs), no en una por IP.
+- **Memoria acotada durante un ataque.** Se siguen como mucho 2000 IPs a la vez (se descarta la
+  que lleva más tiempo sin fallar, nunca el atacante activo) y 200 marcas de tiempo por IP (a
+  partir de ahí el mensaje dice «200+ fallos»). Con una ráfaga de 63 000 líneas desde 6000 IPs,
+  Cerbero pasa de 61 a 65 MB.
 - **Un usuario no puede falsear la IP.** El nombre de usuario lo elige quien se conecta y puede
   contener, p. ej., `from 192.168.1.5 port 1`. El parser se queda con la última IP de la línea,
   que es la que escribe sshd. Las líneas de otros programas que imitan a sshd se ignoran.

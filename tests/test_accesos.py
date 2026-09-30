@@ -186,6 +186,15 @@ def test_brute_force_is_throttled_and_resolves(settings: Settings) -> None:
     assert an.tracked_ips == 0
 
 
+def test_tick_delivers_the_throttled_update(settings: Settings) -> None:
+    an = AccessAnalyzer(settings)
+    for i in range(40):  # una ráfaga de 4 s: solo se envía el cruce del umbral
+        an.feed(failed("203.0.113.5", port=i, valid=False), now=i / 10)
+    (fire,) = fires(an.tick(now=10.0))
+    assert "40 fallos" in fire.message
+    assert an.tick(now=20.0) == []  # nada nuevo que entregar
+
+
 def test_closed_connection_counts_only_without_failed_lines(settings: Settings) -> None:
     an = AccessAnalyzer(settings)
     # Con clave pública no hay líneas "Failed": solo el cierre de cada conexión.
@@ -250,10 +259,36 @@ def test_invalid_users_from_outside_are_not_external_attempts(settings: Settings
 
 def test_memory_is_bounded(settings: Settings, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("app.heads.accesos.MAX_TRACKED_IPS", 100)
+    monkeypatch.setattr("app.heads.accesos.MAX_OPEN_CONNS", 50)
     an = AccessAnalyzer(settings)
     for i in range(1000):
         an.feed(failed(f"10.9.{i // 256}.{i % 256}", valid=False, port=i), now=float(i) / 100)
     assert an.tracked_ips == 100
+    assert len(an._counted_conns) == 50
+    for i in range(3000):
+        an.feed(failed(f"198.51.{i // 250}.{i % 250}", "root", port=i), now=10 + i / 100)
+    assert len(an._external) == 1000
+
+
+def test_eviction_keeps_the_active_attacker(
+    settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("app.heads.accesos.MAX_TRACKED_IPS", 10)
+    an = AccessAnalyzer(settings)
+    actions = []
+    for i in range(200):
+        # El atacante falla sin parar mientras un escaneo pasa por cientos de IPs.
+        actions += an.feed(failed("203.0.113.5", valid=False, port=i), now=i / 10)
+        an.feed(failed(f"198.51.100.{i % 250}", valid=False, port=i), now=i / 10)
+    assert "accesos:fuerza_bruta:203.0.113.5" in keys(actions)
+
+
+def test_count_saturates_but_keeps_alerting(settings: Settings) -> None:
+    an = AccessAnalyzer(settings)
+    for i in range(500):
+        an.feed(failed("203.0.113.5", valid=False, port=i), now=i / 100)
+    (fire,) = fires(an.feed(failed("203.0.113.5", valid=False, port=999), now=60.0))
+    assert "200+ fallos en 5 min" in fire.message
 
 
 # --- Tail ---------------------------------------------------------------------------

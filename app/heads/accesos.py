@@ -139,15 +139,21 @@ Action = Fire | Resolve
 # Una alerta en curso se actualiza como mucho cada tanto (el cooldown ya evita
 # el spam; esto evita encolar una corrutina por cada línea de un ataque).
 REFIRE_EVERY_S = 30.0
-# Tope de IPs seguidas a la vez, para acotar la memoria ante un escaneo masivo.
-MAX_TRACKED_IPS = 5000
+# Topes para acotar la memoria ante un escaneo masivo (Cerbero debe quedarse en
+# < 80 MB justo cuando más falta hace): IPs seguidas a la vez (se descarta la que
+# lleva más tiempo sin fallar), momentos guardados por IP (la cuenta satura, pero
+# sigue por encima del umbral) y conexiones abiertas con fallos ya contados.
+MAX_TRACKED_IPS = 2000
+MAX_TIMES_PER_IP = 200
+MAX_OPEN_CONNS = 2000
+MAX_EXTERNAL_ATTEMPTS = 1000
 USERS_SHOWN = 4
 EXTERNAL_KEY = f"{HEAD}:intento_externo"
 
 
-@dataclass
+@dataclass(slots=True)
 class _IpFailures:
-    times: deque[float] = field(default_factory=deque)
+    times: deque[float]
     users: list[str] = field(default_factory=list)
     total: int = 0
 
@@ -161,9 +167,12 @@ class AccessAnalyzer:
         self._failures: dict[IPAddress, _IpFailures] = {}
         # Conexiones (ip, puerto) que ya sumaron un fallo con una línea "Failed".
         self._counted_conns: dict[tuple[IPAddress, int], float] = {}
-        self._external: deque[tuple[float, IPAddress, str]] = deque()
+        self._external: deque[tuple[float, IPAddress, str]] = deque(maxlen=MAX_EXTERNAL_ATTEMPTS)
         self._raised: set[str] = set()
         self._last_fire: dict[str, float] = {}
+        # Última actualización que el límite de REFIRE_EVERY_S retuvo; ``tick`` la
+        # entrega para que el mensaje guardado (el que ve Dis) no se quede atrás.
+        self._pending: dict[str, Fire] = {}
         ttl_min = max(settings.alert_cooldown_min, 5)
         self._login_ttl = timedelta(minutes=ttl_min)
 
@@ -175,6 +184,8 @@ class AccessAnalyzer:
             if event.method == "none":
                 return []
             self._counted_conns[conn] = now
+            if len(self._counted_conns) > MAX_OPEN_CONNS:
+                self._counted_conns.pop(next(iter(self._counted_conns)))
         elif self._counted_conns.pop(conn, None) is not None:
             return []  # el cierre de una conexión cuyos fallos ya contamos
         return self._failure(event, now)
@@ -195,11 +206,14 @@ class AccessAnalyzer:
     def _failure(self, event: SshEvent, now: float) -> list[Action]:
         actions: list[Action] = []
         trusted = self._settings.is_trusted(event.ip)
-        entry = self._failures.get(event.ip)
+        # Se reinserta al final: el orden del dict es de menos a más reciente.
+        entry = self._failures.pop(event.ip, None)
         if entry is None:
             if len(self._failures) >= MAX_TRACKED_IPS:
                 self._failures.pop(next(iter(self._failures)))
-            entry = self._failures[event.ip] = _IpFailures()
+            maxlen = max(MAX_TIMES_PER_IP, self._settings.brute_force_threshold + 1)
+            entry = _IpFailures(deque(maxlen=maxlen))
+        self._failures[event.ip] = entry
         entry.times.append(now)
         entry.total += 1
         if event.user not in entry.users:
@@ -207,6 +221,7 @@ class AccessAnalyzer:
         self._prune(entry.times, now)
 
         count = len(entry.times)
+        saturated = "+" if count == entry.times.maxlen else ""
         if count > self._settings.brute_force_threshold:
             key = f"{HEAD}:fuerza_bruta:{event.ip}"
             origin = "de confianza" if trusted else "externa"
@@ -214,7 +229,7 @@ class AccessAnalyzer:
             actions += self._throttled(
                 key,
                 "warning" if trusted else "critical",
-                f"Fuerza bruta SSH desde {event.ip} ({origin}): {count} fallos en "
+                f"Fuerza bruta SSH desde {event.ip} ({origin}): {count}{saturated} fallos en "
                 f"{self._settings.brute_force_window_min:g} min (usuarios: {users})",
                 now,
             )
@@ -223,10 +238,11 @@ class AccessAnalyzer:
             self._external.append((now, event.ip, event.user))
             self._prune_external(now)
             ips = {ip for _, ip, _ in self._external}
+            full = "+" if len(self._external) == self._external.maxlen else ""
             actions += self._throttled(
                 EXTERNAL_KEY,
                 "warning",
-                f"Intentos SSH con usuario válido desde IPs externas: {len(self._external)} "
+                f"Intentos SSH con usuario válido desde IPs externas: {len(self._external)}{full} "
                 f"en {self._settings.brute_force_window_min:g} min desde {len(ips)} IP(s) "
                 f"(último: {event.user} desde {event.ip})",
                 now,
@@ -235,11 +251,14 @@ class AccessAnalyzer:
 
     def _throttled(self, key: str, level: Level, message: str, now: float) -> list[Action]:
         new = key not in self._raised
+        fire = Fire(key, level, message)
         if not new and now - self._last_fire.get(key, 0.0) < REFIRE_EVERY_S:
+            self._pending[key] = fire
             return []
         self._raised.add(key)
         self._last_fire[key] = now
-        return [Fire(key, level, message)]
+        self._pending.pop(key, None)
+        return [fire]
 
     def _prune(self, times: deque[float], now: float) -> None:
         while times and now - times[0] > self._window:
@@ -251,32 +270,35 @@ class AccessAnalyzer:
 
     def tick(self, now: float) -> list[Action]:
         """Mantenimiento periódico: resuelve lo que ha cesado y libera memoria."""
-        actions: list[Action] = []
+        resolved: list[Action] = []
         for ip in list(self._failures):
             entry = self._failures[ip]
             self._prune(entry.times, now)
-            if entry.times:
-                continue
-            del self._failures[ip]
-            key = f"{HEAD}:fuerza_bruta:{ip}"
-            if key in self._raised:
-                self._raised.discard(key)
-                self._last_fire.pop(key, None)
-                actions.append(
-                    Resolve(
-                        key,
-                        f"Cesa la fuerza bruta SSH desde {ip} ({entry.total} fallos en total)",
-                    )
-                )
+            if not entry.times:
+                del self._failures[ip]
+                message = f"Cesa la fuerza bruta SSH desde {ip} ({entry.total} fallos en total)"
+                resolved += self._resolve(f"{HEAD}:fuerza_bruta:{ip}", message)
         self._prune_external(now)
-        if not self._external and EXTERNAL_KEY in self._raised:
-            self._raised.discard(EXTERNAL_KEY)
-            self._last_fire.pop(EXTERNAL_KEY, None)
-            actions.append(Resolve(EXTERNAL_KEY, "Cesan los intentos SSH desde IPs externas"))
+        if not self._external:
+            resolved += self._resolve(EXTERNAL_KEY, "Cesan los intentos SSH desde IPs externas")
         for conn, seen in list(self._counted_conns.items()):
             if now - seen > self._window:
                 del self._counted_conns[conn]
-        return actions
+
+        # Lo que retuvo el límite de actualizaciones, salvo lo que se acaba de resolver.
+        updates: list[Action] = list(self._pending.values())
+        for key in self._pending:
+            self._last_fire[key] = now
+        self._pending.clear()
+        return [*updates, *resolved]
+
+    def _resolve(self, key: str, message: str) -> list[Action]:
+        if key not in self._raised:
+            return []
+        self._raised.discard(key)
+        self._last_fire.pop(key, None)
+        self._pending.pop(key, None)
+        return [Resolve(key, message)]
 
     @property
     def tracked_ips(self) -> int:
@@ -297,7 +319,7 @@ class LogTailer:
     - Una línea a medio escribir se guarda hasta que llega su salto de línea.
     """
 
-    CHUNK = 256 * 1024
+    CHUNK = 64 * 1024
     MAX_PARTIAL = 64 * 1024
 
     def __init__(self, path: str) -> None:
