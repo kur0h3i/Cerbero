@@ -87,6 +87,10 @@ CERBERO_URL=http://192.168.1.60:9666
 Si Cerbero está caído, Dis no puede conectar y muestra «Cerbero no conectado»; no hace falta
 nada más.
 
+En la tarjeta del contenedor, Dis muestra el logo de Cerbero: lo encuentra en
+`/favicon.svg`. El botón «Abrir» lleva a `/`, que redirige a la documentación de la API
+(`/api/docs`); Cerbero no tiene web propia.
+
 ## Qué vigila
 
 ### Cabeza 1 — Recursos

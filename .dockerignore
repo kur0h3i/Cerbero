@@ -6,7 +6,8 @@
 *.egg-info
 build
 tests
-assets
+assets/*
+!assets/cerbero.svg
 *.md
 .env
 .env.example

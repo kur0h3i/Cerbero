@@ -172,3 +172,16 @@ def test_api_is_read_only(client: TestClient) -> None:
     for path in ("/api/alerts", "/api/status", "/api/health"):
         assert client.post(path).status_code == 405
         assert client.delete(path).status_code == 405
+
+
+def test_favicon_for_dis(client: TestClient) -> None:
+    resp = client.get("/favicon.svg")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "image/svg+xml"
+    assert resp.text.lstrip().startswith("<svg")
+
+
+def test_root_redirects_to_docs(client: TestClient) -> None:
+    resp = client.get("/", follow_redirects=False)
+    assert resp.status_code == 307
+    assert resp.headers["location"] == "/api/docs"

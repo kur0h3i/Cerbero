@@ -13,8 +13,10 @@ import logging
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.responses import FileResponse, RedirectResponse, Response
 
 from . import __doc__ as description
 from .alerter import Alerter, Notifier, TelegramNotifier
@@ -29,6 +31,10 @@ log = logging.getLogger("cerbero")
 
 # Cada cuánto se cierran los eventos caducados (logins externos).
 HOUSEKEEPING_S = 30
+
+# Logo con fondo (icono). Dis lo usa en la tarjeta del contenedor: cuando un
+# servicio no está en su catálogo de logos, prueba el ``/favicon.svg`` de su web.
+FAVICON = Path(__file__).resolve().parent.parent / "assets" / "cerbero.svg"
 
 
 @dataclass
@@ -120,4 +126,18 @@ def create_app(
         openapi_url="/api/openapi.json",
     )
     app.include_router(router)
+
+    @app.get("/", include_in_schema=False)
+    def root() -> RedirectResponse:
+        # Cerbero no tiene web propia: el botón «Abrir» de Dis lleva a la API.
+        return RedirectResponse("/api/docs")
+
+    @app.get("/favicon.svg", include_in_schema=False)
+    def favicon() -> Response:
+        if not FAVICON.is_file():
+            return Response(status_code=404)
+        return FileResponse(
+            FAVICON, media_type="image/svg+xml", headers={"Cache-Control": "max-age=86400"}
+        )
+
     return app
