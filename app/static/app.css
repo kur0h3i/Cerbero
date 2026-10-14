@@ -185,6 +185,10 @@ body[data-state='critical'] .pill {
   white-space: nowrap;
 }
 
+.stale {
+  color: var(--warning-ink);
+}
+
 .banner {
   margin: 12px 16px 0;
   padding: 10px 12px;

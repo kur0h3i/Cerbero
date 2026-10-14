@@ -255,7 +255,8 @@ function renderGlobal(health, active) {
 
 function renderUpdated() {
   const el = document.getElementById('updated');
-  el.textContent = lastOk ? `actualizado ${ago(lastOk.toISOString())}` : '';
+  const old = lastOk && Date.now() - lastOk.getTime() > 30_000;
+  el.textContent = old ? `▲ datos de ${ago(lastOk.toISOString())}` : '';
 }
 
 function headSummary(id, status) {
