@@ -520,7 +520,9 @@ function renderAccesos(status) {
         a.ultimos_accesos.map((l) => {
           // Función y no variable: un nodo no puede estar en dos sitios a la vez.
           const method = () =>
-            l.metodo === 'password' && !l.confianza ? badge('critical', 'password') : l.metodo;
+            ['password', 'keyboard-interactive'].includes(l.metodo) && !l.confianza
+              ? badge('critical', l.metodo)
+              : l.metodo;
           return h(
             'tr',
             {},
