@@ -118,6 +118,27 @@ def test_explained_recently(tmp_path: Path) -> None:
     assert not informe.explained_recently(tmp_path / "no-existe.json", NOW)
 
 
+def test_check_output_file(tmp_path: Path) -> None:
+    import os
+
+    state = tmp_path / "estado.json"
+    state.write_text("{}")
+    now = datetime.now().astimezone()
+    ok = informe.from_systemd("cola-tareas", 1800, {"SERVICE_RESULT": "success"})
+    fresh = informe.check_output(dict(ok, detalle={}), state, now)
+    assert fresh["resultado"] == "ok"
+    # El servicio «terminó bien» pero hace 45 min que no toca su JSON.
+    os.utime(state, (now.timestamp() - 2700, now.timestamp() - 2700))
+    stale = informe.check_output(dict(ok, detalle={}), state, now)
+    assert stale["resultado"] == "fallo"
+    assert stale["resumen"] == "Terminó bien pero estado.json lleva 45 min sin actualizarse"
+    missing = informe.check_output(dict(ok, detalle={}), tmp_path / "no.json", now)
+    assert missing["resumen"].startswith("No se puede leer")
+    # Si el servicio ya falló, eso es lo que cuenta.
+    failed = informe.from_systemd("cola-tareas", 1800, {"SERVICE_RESULT": "exit-code"})
+    assert informe.check_output(failed, tmp_path / "no.json", now) is failed
+
+
 # --- Limpieza ------------------------------------------------------------------------
 
 

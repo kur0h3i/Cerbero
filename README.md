@@ -108,8 +108,8 @@ sudo install -d -m 755 -o "$USER" -g "$USER" /var/lib/cerbero/tareas
 Y después, con tu usuario y sin sudo:
 
 ```bash
-host/tareas/instalar.sh
-systemctl --user start cerbero-limpieza.service   # opcional: limpiar ya
+host/tareas/instalar.sh --cola-json /ruta/al/estado.json   # el JSON que reescribe cola-tareas
+systemctl --user start cerbero-limpieza.service            # opcional: limpiar ya
 cat /var/lib/cerbero/tareas/limpieza-docker.json
 ```
 
@@ -277,6 +277,14 @@ Para engancharlo a una unidad de systemd que ya existe, sin tocar su código, ba
 ```ini
 ExecStopPost=/usr/bin/python3 %h/.local/lib/cerbero/informe_tarea.py systemd --tarea mi-tarea --cada 3600
 ```
+
+**Cola de tareas del vault** (`cola-tareas.timer`, de usuario, cada 30 min). El instalador le
+añade un *drop-in* (`~/.config/systemd/user/cola-tareas.service.d/cerbero.conf`) con el
+`ExecStopPost=` de arriba; la unidad y su script no se tocan. Avisa si el servicio falla y, a la
+hora sin informe, de que el timer no corre. Con `--cola-json RUTA` comprueba además que cada
+ejecución reescribe su JSON de estado (el que lee Dis): si el servicio «termina bien» pero el
+fichero tiene más de 30 min, también es un fallo. Esa comprobación la hace el `ExecStopPost`,
+que corre como tu usuario: Cerbero no puede entrar en tu home.
 
 **Limpieza semanal de imágenes Docker** (`cerbero-limpieza.timer`, de usuario). Los domingos a
 las 04:30 (o al arrancar, si el servidor estaba apagado) ejecuta

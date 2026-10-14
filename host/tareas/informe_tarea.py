@@ -93,6 +93,28 @@ def from_systemd(task: str, every_s: int, env: dict[str, str]) -> dict:
     return build_report(task, ok, every_s, summary, detail=detail)
 
 
+def check_output(report: dict, path: Path, now: datetime) -> dict:
+    """Si la tarea terminó bien, comprueba que ha actualizado su fichero de salida.
+
+    Un servicio puede «terminar bien» sin haber hecho su trabajo. Se da por no
+    actualizado si el fichero tiene más de un periodo (``cada_s``): cada
+    ejecución debería haberlo reescrito.
+    """
+    if report["resultado"] != "ok":
+        return report
+    try:
+        age = now.timestamp() - path.stat().st_mtime
+    except OSError as exc:
+        problem = f"no se puede leer {path}: {exc.strerror or type(exc).__name__}"
+    else:
+        if age <= report["cada_s"]:
+            report["detalle"]["salida_actualizada_hace_s"] = int(age)
+            return report
+        problem = f"terminó bien pero {path.name} lleva {age / 60:.0f} min sin actualizarse"
+    report.update(resultado="fallo", resumen=problem.capitalize())
+    return report
+
+
 def explained_recently(path: Path, now: datetime, within_s: int = OWN_REPORT_S) -> bool:
     """¿La tarea ya dejó un informe de fallo propio (con más detalle) hace poco?"""
     try:
@@ -115,6 +137,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="no escribir si fue bien (la propia tarea deja un informe más detallado)",
     )
+    sd.add_argument(
+        "--fichero",
+        type=Path,
+        help="fichero que la tarea debe reescribir en cada ejecución (su JSON de estado)",
+    )
 
     w = sub.add_parser("escribir", help="informe a mano")
     w.add_argument("--tarea", required=True)
@@ -126,6 +153,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.modo == "systemd":
         report = from_systemd(args.tarea, args.cada, dict(os.environ))
+        if args.fichero:
+            report = check_output(report, args.fichero, datetime.now().astimezone())
         if args.solo_fallos:
             own = OUT_DIR / f"{args.tarea}.json"
             now = datetime.now().astimezone()

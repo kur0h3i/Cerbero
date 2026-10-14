@@ -1,10 +1,22 @@
 #!/usr/bin/env bash
 # Instala las tareas de usuario de Cerbero. Con tu usuario, SIN sudo, desde el repo:
-#   host/tareas/instalar.sh
+#   host/tareas/instalar.sh [--cola-json RUTA]
+#
+# --cola-json RUTA  el JSON de estado que reescribe cola-tareas en cada ejecución;
+#                   si se indica, se avisa también cuando el servicio termina bien
+#                   pero no lo actualiza.
 # Necesita una sola vez la carpeta de informes (esa parte sí es con sudo):
 #   sudo install -d -m 755 -o "$USER" -g "$USER" /var/lib/cerbero/tareas
 # Es idempotente: se puede repetir para actualizar los scripts o las unidades.
 set -euo pipefail
+
+COLA_JSON=""
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --cola-json) COLA_JSON=${2:?falta la ruta}; shift 2 ;;
+    *) echo "Opción desconocida: $1" >&2; exit 1 ;;
+  esac
+done
 
 [[ $EUID -ne 0 ]] || { echo "Ejecútalo con tu usuario, sin sudo." >&2; exit 1; }
 cd "$(dirname "$0")"
@@ -35,6 +47,28 @@ systemctl --user daemon-reload
 systemctl --user enable --now cerbero-limpieza.timer
 systemctl --user list-timers cerbero-limpieza.timer --no-pager
 
+if systemctl --user cat cola-tareas.service >/dev/null 2>&1; then
+  echo "==> Informe de cola-tareas (drop-in, la unidad no se toca)"
+  DROPIN="$UNITS/cola-tareas.service.d"
+  ARGS="systemd --tarea cola-tareas --cada 1800"
+  if [[ -n $COLA_JSON ]]; then
+    [[ -e $COLA_JSON ]] || echo "Aviso: $COLA_JSON no existe todavía." >&2
+    ARGS+=" --fichero $COLA_JSON"
+  fi
+  install -d "$DROPIN"
+  cat > "$DROPIN/cerbero.conf" <<CONF
+# Cerbero: informe de cada ejecución (también si falla). Para quitarlo, borra este fichero.
+[Service]
+ExecStopPost=/usr/bin/python3 %h/.local/lib/cerbero/informe_tarea.py $ARGS
+CONF
+  systemctl --user daemon-reload
+  cat "$DROPIN/cerbero.conf"
+else
+  echo "==> No hay cola-tareas.service: me salto su informe"
+fi
+
 echo
 echo "Listo. Para probar la limpieza ya (borra las imágenes sin usar de más de 7 días):"
 echo "  systemctl --user start cerbero-limpieza.service && cat $DIR/limpieza-docker.json"
+echo "El informe de cola-tareas aparecerá tras su próxima ejecución (como mucho 30 min):"
+echo "  cat $DIR/cola-tareas.json"
