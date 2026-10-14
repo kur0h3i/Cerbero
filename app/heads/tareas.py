@@ -163,6 +163,15 @@ class TareasHead:
             if new and report.ok and report.avisar and report.resumen:
                 await self._alerter.notify(f"{HEAD}:aviso:{report.tarea}", HEAD, report.resumen)
         self._seen = seen
+        await self._forget(reports)
+
+    async def _forget(self, reports: list[TaskReport]) -> None:
+        """Tareas cuyo informe ya no existe: cierra sus alertas."""
+        names = {r.tarea for r in reports}
+        for key in self._alerter.active_keys(f"{HEAD}:"):
+            _, _, name = key.partition(":")[2].partition(":")
+            if name and name not in names:
+                await self._alerter.resolve(key, f"La tarea {name} ya no deja informe")
 
     async def _check_failed(self, report: TaskReport) -> None:
         key = f"{HEAD}:fallo:{report.tarea}"

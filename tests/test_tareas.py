@@ -100,6 +100,17 @@ async def test_failure_is_warning_and_next_success_resolves(setup) -> None:
     assert "La tarea cola-tareas vuelve a funcionar" in notifier.sent[-1]
 
 
+async def test_removed_report_closes_its_alerts(setup) -> None:
+    head, host, alerter, notifier = setup
+    host.report("cola-tareas", ok=False, resumen="Sin red")
+    await head.check()
+    assert alerter.is_active("tareas:fallo:cola-tareas")
+    (host.path / "cola-tareas.json").unlink()
+    await head.check()
+    assert not alerter.is_active("tareas:fallo:cola-tareas")
+    assert "ya no deja informe" in notifier.sent[-1]
+
+
 async def test_failed_summary_is_not_sent_as_info(setup) -> None:
     head, host, _, notifier = setup
     await head.check()
