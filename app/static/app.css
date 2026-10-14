@@ -580,6 +580,17 @@ details summary {
   }
 }
 
+/* Por si algún día hay movimiento. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 @media (pointer: coarse) {
   .icon-btn {
     width: 44px;
