@@ -589,3 +589,17 @@ accesos. El logo, en la misma paleta que Dis y Caronte, dibuja el Canto VI:
 
 `assets/cerbero-logo.svg` es el logo sin fondo; `assets/cerbero.svg`, la variante con fondo
 oscuro redondeado para usar como icono.
+
+## Hoja de ruta
+
+- **Eventos de Gerión.** Cuando exista el honeypot, recibir sus eventos (alguien ha tocado el
+  señuelo) y tratarlos como alertas de accesos: 🔴 por defecto, porque nadie legítimo debería
+  llegar ahí. Pendiente de definir cómo los entrega Gerión (un JSON en
+  `/var/lib/cerbero/` como las tareas, o una llamada a Cerbero, que entonces dejaría de ser
+  solo lectura y necesitaría autenticación).
+- **Backup del vault Cerebro.** Hoy no hay ninguno. Cuando exista, basta con que su timer deje
+  un informe de tarea (`ExecStopPost=… informe_tarea.py systemd --tarea backup-cerebro --cada
+  86400`) para que Cerbero avise si falla o deja de ejecutarse, sin tocar Cerbero.
+- **En Dis.** Mostrar solo las alertas activas (`/api/alerts?active=true`) con su color por
+  nivel, y pintar sin el recuadro claro los logos que ya traen fondo (los de Cerbero, Caronte y
+  el propio Dis).

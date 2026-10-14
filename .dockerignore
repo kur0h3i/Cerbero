@@ -12,3 +12,4 @@ assets/*
 *.md
 .env
 .env.example
+docs
