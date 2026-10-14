@@ -563,3 +563,13 @@ details summary {
     border-color: CanvasText;
   }
 }
+
+@media (pointer: coarse) {
+  .icon-btn {
+    width: 44px;
+    height: 44px;
+  }
+  details summary {
+    padding: 10px 0;
+  }
+}
