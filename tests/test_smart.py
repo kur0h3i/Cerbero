@@ -237,6 +237,30 @@ async def test_unreadable_smart(setup) -> None:
     )
 
 
+async def test_removed_disk_closes_its_alerts(setup) -> None:
+    head, host, alerter, notifier = setup
+    host.write("extra", None, estado="error", error="Unknown USB bridge")
+    host.write("archivos", smartctl("ata"))
+    await head.check()
+    assert alerter.is_active("smart:error:extra")
+    (host.path / "extra.json").unlink()
+    await head.check()
+    assert not alerter.is_active("smart:error:extra")
+    assert "ya no se vigila" in notifier.sent[-1]
+
+
+async def test_unreadable_dir_does_not_close_alerts(setup) -> None:
+    head, host, alerter, _ = setup
+    host.write("extra", None, estado="error", error="Unknown USB bridge")
+    await head.check()
+    for f in host.path.iterdir():
+        f.unlink()
+    host.path.rmdir()
+    await head.check()
+    assert alerter.is_active("smart:error:extra")
+    assert alerter.is_active("smart:sin_datos")
+
+
 async def test_stale_data_means_the_timer_stopped(setup) -> None:
     head, host, alerter, _ = setup
     host.write("archivos", smartctl("ata"))

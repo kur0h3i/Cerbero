@@ -184,6 +184,7 @@ class SmartHead:
             disks, reason = [], exc.strerror or type(exc).__name__
         else:
             reason = "no hay ningún disco" if not disks else None
+            await self._forget(disks)
         if reason:
             self.snapshot, self._fresh = [], False
             await self._alerter.fire(
@@ -200,6 +201,17 @@ class SmartHead:
         self.snapshot = disks
         await self.evaluate(disks)
         self._last_ok = time.monotonic()
+
+    async def _forget(self, disks: list[DiskHealth]) -> None:
+        """Discos que ya no tienen JSON (quitados de discos.conf): cierra sus alertas."""
+        names = {d.nombre for d in disks}
+        for key in self._alerter.active_keys(f"{HEAD}:"):
+            _, _, name = key.partition(":")[2].partition(":")
+            if name and name not in names:
+                await self._alerter.resolve(key, f"Disco {name} ya no se vigila")
+        for state in (self._reallocated, self._rose_at):
+            for name in state.keys() - names:
+                del state[name]
 
     async def evaluate(self, disks: list[DiskHealth]) -> None:
         now = self._clock()
