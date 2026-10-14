@@ -141,10 +141,10 @@ En la tarjeta del contenedor, Dis muestra el logo de Cerbero: lo encuentra en
 Cerbero**; Dis sigue siendo el panel general del servidor, así que no repite lo que ya está allí
 (CPU, RAM y logs de cada contenedor, el mapa de servicios):
 
-- **Vigilancia**: una tarjeta por frente (recursos, contenedores, accesos SSH, discos, tareas)
-  con su estado y un resumen.
 - **Alertas activas**, de la más grave a la menos, y el **histórico** de las últimas 50
   resueltas con su duración.
+- **Vigilancia**: una tarjeta por frente (recursos, contenedores, accesos SSH, discos, tareas)
+  con su estado y un resumen.
 - **Recursos**: CPU, RAM y discos con la marca del umbral en cada barra.
 - **Discos (SMART)**, **accesos SSH** (fallos recientes y últimos logins aceptados, de confianza
   o externos), **tareas** y **contenedores** (los que tienen problemas primero).
