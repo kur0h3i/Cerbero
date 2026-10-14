@@ -73,7 +73,7 @@ ls -l /var/log/auth.log || sudo apt install rsyslog
 
    ```bash
    docker compose ps                        # STATUS: Up … (healthy)
-   curl http://localhost:9666/api/health    # {"status":"ok","heads":{…: true}}
+   curl http://192.168.1.60:9666/api/health # {"status":"ok","heads":{…: true}}
    docker stats --no-stream cerbero         # MEM USAGE ~50 MiB / 80 MiB
    ```
 
@@ -414,10 +414,11 @@ No hacen falta `pid: host`, `network_mode: host` ni `SYS_PTRACE`: CPU y RAM del 
 - **La web** solo carga recursos de Cerbero, sin nada en línea (CSP `default-src 'self'`), no
   se puede incrustar en otra página (`frame-ancestors 'none'`) y pinta los datos como texto: un
   nombre de usuario de SSH con HTML no se ejecuta.
-- **La API no tiene autenticación** y es de solo lectura. Publica el puerto 9666 en todas las
-  interfaces: no lo redirijas en el router. Para limitarlo a la LAN y Tailscale, en
-  `docker-compose.yml` cambia la línea de `ports` por
-  `"192.168.1.60:9666:9666"` y `"100.87.200.60:9666:9666"`.
+- **La API no tiene autenticación** y es de solo lectura. Solo publica el puerto 9666 en la LAN
+  (`192.168.1.60`) y en Tailscale (`100.87.200.60`), no en todas las interfaces: tampoco lo
+  redirijas en el router. Si Tailscale no ha levantado su IP cuando Docker arranca el
+  contenedor, este no arranca (`docker compose up -d` otra vez cuando ya esté). Otra IP o red:
+  cambia las líneas de `ports` en `docker-compose.yml`.
 - **Lo que necesita root se queda en el host.** `cerbero-smart.service` es el único que corre
   como root (`smartctl` habla directamente con los discos), con la unidad cerrada: sin red,
   sistema de ficheros de solo lectura salvo `/var/lib/cerbero/smart` y sin acceso a `/home`.

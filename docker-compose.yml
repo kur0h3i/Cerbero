@@ -14,8 +14,11 @@ services:
     # Red bridge con el puerto publicado. Las IPs de SSH salen de auth.log (las
     # escribe el sshd del host), así que no hace falta network_mode: host.
     # Dis lo alcanza con CERBERO_URL=http://192.168.1.60:9666.
+    # OJO: si Tailscale no tiene aún la IP 100.87.200.60 cuando Docker arranca el
+    # contenedor, este no arranca.
     ports:
-      - "${CERBERO_PORT:-9666}:9666"
+      - "192.168.1.60:${CERBERO_PORT:-9666}:9666"
+      - "100.87.200.60:${CERBERO_PORT:-9666}:9666"
     volumes:
       # Solo lectura a nivel de fichero. OJO: el socket da acceso completo a la
       # API de Docker igualmente; Cerbero solo lista, inspecciona y lee eventos.
