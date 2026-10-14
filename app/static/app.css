@@ -473,6 +473,15 @@ td.nowrap {
   .head:last-child:nth-child(odd) {
     grid-column: 1 / -1;
   }
+  .alerts li {
+    grid-template-columns: 1fr;
+  }
+  .alert-meta {
+    grid-column: 1;
+  }
+  .alerts li > .badge {
+    justify-self: start;
+  }
   table {
     font-size: 12px;
   }
