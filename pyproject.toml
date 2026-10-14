@@ -1,7 +1,7 @@
 [project]
 name = "cerbero"
 version = "0.1.0"
-description = "Cerbero — monitor de recursos, contenedores y accesos de server-kuro"
+description = "Cerbero — monitor de recursos, contenedores, accesos, discos y tareas de server-kuro"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",

@@ -1,7 +1,7 @@
-"""Arranque de Cerbero: la API y las tres cabezas.
+"""Arranque de Cerbero: la API y las cinco cabezas.
 
-Las cabezas 1 y 2 son bucles de asyncio con ``asyncio.sleep``; la 3 sigue el
-log en su propio hilo. Todo arranca y se para con la aplicación (lifespan).
+Recursos, contenedores, SMART y tareas son bucles de asyncio con ``asyncio.sleep``;
+accesos sigue el log en su propio hilo. Todo arranca y se para con la aplicación (lifespan).
 
 Uso: ``uvicorn --factory app.main:create_app``.
 """

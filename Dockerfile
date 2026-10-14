@@ -3,7 +3,7 @@ FROM python:3.12-slim
 
 # Metadatos OCI: Dis (y otros paneles) los usan como descripción del contenedor.
 LABEL org.opencontainers.image.title="Cerbero" \
-      org.opencontainers.image.description="Monitor de recursos, contenedores y accesos del servidor"
+      org.opencontainers.image.description="Monitor de recursos, contenedores, accesos, discos y tareas del servidor"
 
 # MALLOC_ARENA_MAX: con varios hilos, glibc reserva una arena de memoria por hilo;
 # limitarlas ahorra RAM (restricción de < 80 MB).

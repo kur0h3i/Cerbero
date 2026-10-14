@@ -481,7 +481,7 @@ Documentación interactiva en `/api/docs`.
 | GET | `/api/alerts` | `{connected: true, alerts: [...]}`; `?active=true` deja solo las activas |
 | GET | `/api/status` | `{servidor, umbrales, cpu_pct, ram_free_gb, ram_total_gb, disks, containers, smart, tareas, accesos}` |
 
-`/api/health` responde `status: "ok"` si las tres cabezas funcionan y `"degraded"` si alguna no
+`/api/health` responde `status: "ok"` si todas las cabezas funcionan y `"degraded"` si alguna no
 (p. ej., la de accesos si no puede leer `auth.log`); cada cabeza, `true` o `false`.
 
 `/api/alerts` es lo que consume Dis. Primero van las activas y luego las resueltas, de la más
@@ -581,8 +581,8 @@ docs/                    captura de la web
 > — Dante, *Infierno*, VI, 13-15
 
 Cerbero guarda el tercer círculo del *Infierno* de Dante, el de los golosos, y ladra con sus
-tres gargantas a quien se acerca. Aquí cada cabeza vigila un frente: recursos, contenedores y
-accesos. El logo, en la misma paleta que Dis y Caronte, dibuja el Canto VI:
+tres gargantas a quien se acerca. Aquí las cabezas vigilan cinco frentes: recursos, contenedores,
+accesos, discos y tareas. El logo, en la misma paleta que Dis y Caronte, dibuja el Canto VI:
 
 - **Las tres cabezas** en el violeta de Dis, con el borde al rojo vivo.
 - **«Li occhi ha vermigli»** (v. 16): los ojos de brasa.

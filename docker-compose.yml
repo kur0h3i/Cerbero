@@ -37,4 +37,4 @@ services:
     mem_limit: 80m
     cpus: 0.25
     labels:
-      dis.description: "Monitor de recursos, contenedores y accesos de server-kuro"
+      dis.description: "Monitor de recursos, contenedores, accesos, discos y tareas de server-kuro"
