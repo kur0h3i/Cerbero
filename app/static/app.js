@@ -534,7 +534,7 @@ function renderAccesos(status) {
 
 function renderTareas(status) {
   if (!status.tareas.length) {
-    replace('tareas', empty('Sin informes de tareas. ¿Está instalado host/tareas/instalar.sh?'));
+    replace('tareas', empty('Instala host/tareas/instalar.sh en el servidor para ver sus informes.'));
     return;
   }
   const rows = status.tareas.map((t) => {
