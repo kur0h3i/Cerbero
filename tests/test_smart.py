@@ -243,10 +243,24 @@ async def test_removed_disk_closes_its_alerts(setup) -> None:
     host.write("archivos", smartctl("ata"))
     await head.check()
     assert alerter.is_active("smart:error:extra")
+    head._reallocated["extra"] = 8  # estado que habría dejado una lectura anterior
+    head._rose_at["extra"] = host.clock.now
     (host.path / "extra.json").unlink()
     await head.check()
     assert not alerter.is_active("smart:error:extra")
     assert "ya no se vigila" in notifier.sent[-1]
+    assert "extra" not in head._reallocated
+    assert "extra" not in head._rose_at
+
+
+async def test_empty_dir_is_no_data(setup) -> None:
+    head, host, alerter, _ = setup
+    host.write("extra", None, estado="error", error="Unknown USB bridge")
+    await head.check()
+    (host.path / "extra.json").unlink()
+    await head.check()
+    assert not alerter.is_active("smart:error:extra")
+    assert alerter.is_active("smart:sin_datos")
 
 
 async def test_unreadable_dir_does_not_close_alerts(setup) -> None:
