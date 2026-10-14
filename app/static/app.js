@@ -449,10 +449,10 @@ function renderSmart(status) {
       );
     }
     if (d.reasignados != null) {
-      const bad = [d.reasignados, d.pendientes ?? 0, d.incorregibles ?? 0];
-      const n = (v, label) => (v ? h('strong', {}, `${v} ${label}`) : `${v} ${label}`);
+      const bad = [d.reasignados, d.pendientes, d.incorregibles];
+      const n = (v, label) => (v ? h('strong', {}, `${v} ${label}`) : `${num(v)} ${label}`);
       facts.push(
-        bad.every((v) => !v)
+        bad.every((v) => v === 0)
           ? 'sin sectores dañados'
           : h(
               'span',
