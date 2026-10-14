@@ -117,6 +117,15 @@ def test_parse_username_cannot_spoof_the_ip() -> None:
     assert e is not None and str(e.ip) == "203.0.113.66"
 
 
+def test_parse_truncates_long_usernames() -> None:
+    e = parse_line(
+        NEW + "Failed password for invalid user " + "a" * 900 + " from 203.0.113.5 port 1 ssh2"
+    )
+    assert e is not None
+    assert len(e.user) == 64
+    assert str(e.ip) == "203.0.113.5"
+
+
 # --- Analizador --------------------------------------------------------------------
 
 

@@ -114,7 +114,7 @@ def parse_line(line: str) -> SshEvent | None:
     if ip is None:
         return None
     method = m.groupdict().get("method") or ""
-    return SshEvent(kind, ip, int(m["port"]), m["user"], valid, method)
+    return SshEvent(kind, ip, int(m["port"]), m["user"][:USER_MAX], valid, method)
 
 
 # --- Análisis --------------------------------------------------------------------
@@ -142,11 +142,13 @@ REFIRE_EVERY_S = 30.0
 # Topes para acotar la memoria ante un escaneo masivo (Cerbero debe quedarse en
 # < 80 MB justo cuando más falta hace): IPs seguidas a la vez (se descarta la que
 # lleva más tiempo sin fallar), momentos guardados por IP (la cuenta satura, pero
-# sigue por encima del umbral) y conexiones abiertas con fallos ya contados.
+# sigue por encima del umbral), conexiones abiertas con fallos ya contados y el
+# nombre de usuario, que lo elige quien se conecta.
 MAX_TRACKED_IPS = 2000
 MAX_TIMES_PER_IP = 200
 MAX_OPEN_CONNS = 2000
 MAX_EXTERNAL_ATTEMPTS = 1000
+USER_MAX = 64
 USERS_SHOWN = 4
 EXTERNAL_KEY = f"{HEAD}:intento_externo"
 
