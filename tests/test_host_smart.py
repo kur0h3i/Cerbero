@@ -144,6 +144,40 @@ def test_unreadable_smart_is_an_error(device: str) -> None:
     assert "Unknown USB bridge" in out["cerbero"]["error"]
 
 
+def test_error_without_messages_explains_the_exit_code(device: str) -> None:
+    # Así responde un puente USB que rechaza el passthrough ATA (Seagate 0bc2:2036):
+    # «Read Device Identity failed» va fuera del JSON y solo queda el código 2.
+    bare = {"smartctl": {"exit_status": 2}, "device": {"name": device}}
+    run = FakeSmartctl({None: (2, bare), "sat": (2, bare)})
+    out = cs.check_disk(cs.Disk("extra", device), None, NOW, run)
+    assert out["cerbero"]["error"] == (
+        "código 2: no se pudo abrir el disco o no respondió a IDENTIFY (¿puente USB sin SMART?)"
+    )
+
+
+def test_error_shows_both_attempts_when_they_differ(device: str) -> None:
+    run = FakeSmartctl(
+        {None: (1, fixture("smartctl_unknown_bridge.json")), "sat": (2, {"smartctl": {}})}
+    )
+    out = cs.check_disk(cs.Disk("extra", device), None, NOW, run)
+    assert out["cerbero"]["error"].startswith("auto: /dev/sda: Unknown USB bridge")
+    assert "; sat: código 2: no se pudo abrir" in out["cerbero"]["error"]
+
+
+def test_detected_disk_without_smart_is_commented_out() -> None:
+    ok = cs.conf_line(
+        "archivos", "/dev/disk/by-id/ata-X", "/srv/archivos", False, None, "WDC", None
+    )
+    assert ok == "archivos  /dev/disk/by-id/ata-X  /srv/archivos  # WDC"
+    bad = cs.conf_line(
+        "extra", "/dev/disk/by-id/usb-Y", "/srv/extra", False, None, "Exp", "código 2"
+    )
+    assert bad.startswith("# extra")
+    assert cs.parse_conf(bad) == []  # el timer no lo toca
+    secure = cs.conf_line("secure", "/dev/x", "/srv/secure", True, "sat", "WDC", None)
+    assert cs.parse_conf(secure) == [cs.Disk("secure", "/dev/x", "/srv/secure", True, "sat")]
+
+
 def test_dump_all_writes_atomically_and_world_readable(tmp_path: Path, device: str) -> None:
     out_dir = tmp_path / "smart"
     disks = [cs.Disk("archivos", device), cs.Disk("secure", str(tmp_path / "x"), optional=True)]

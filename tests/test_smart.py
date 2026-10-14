@@ -179,11 +179,11 @@ async def test_stable_reallocated_is_warning_and_rising_is_critical(setup) -> No
 async def test_temperature(setup) -> None:
     head, host, alerter, _ = setup
     hot = smartctl("ata")
-    hot["temperature"]["current"] = 53
+    hot["temperature"]["current"] = 58
     host.write("archivos", hot)
     await head.check()
     assert alerter.store.get("smart:temperatura:archivos").message == (
-        "Disco archivos a 53 °C (umbral 50 °C)"
+        "Disco archivos a 58 °C (umbral 55 °C)"
     )
     # 65 °C es normal para un NVMe (umbral 70) pero no para un disco duro.
     nvme = smartctl("nvme")
@@ -191,12 +191,12 @@ async def test_temperature(setup) -> None:
     host.write("sistema", nvme)
     await head.check()
     assert not alerter.is_active("smart:temperatura:sistema")
-    # Con margen para resolver: a 49 °C sigue, a 46 °C se resuelve.
-    hot["temperature"]["current"] = 49
+    # Con margen para resolver: a 54 °C sigue, a 51 °C se resuelve.
+    hot["temperature"]["current"] = 54
     host.write("archivos", hot)
     await head.check()
     assert alerter.is_active("smart:temperatura:archivos")
-    hot["temperature"]["current"] = 46
+    hot["temperature"]["current"] = 51
     host.write("archivos", hot)
     await head.check()
     assert not alerter.is_active("smart:temperatura:archivos")
@@ -205,7 +205,7 @@ async def test_temperature(setup) -> None:
 async def test_standby_keeps_last_data_and_cools_down(setup) -> None:
     head, host, alerter, _ = setup
     hot = smartctl("ata")
-    hot["temperature"]["current"] = 55
+    hot["temperature"]["current"] = 58
     host.write("extra", hot)
     await head.check()
     assert alerter.is_active("smart:temperatura:extra")

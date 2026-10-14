@@ -119,11 +119,26 @@ def _in_standby(code: int, data: dict) -> bool:
     return bool(code & EXIT_OPEN) and any(_POWER_MODE.search(m) for m in _messages(data))
 
 
-def _error_text(data: dict) -> str:
+# Qué significa cada bit del código de salida cuando no hay datos (man smartctl).
+_EXIT_REASONS = {
+    1: "argumentos no válidos",
+    2: "no se pudo abrir el disco o no respondió a IDENTIFY (¿puente USB sin SMART?)",
+    4: "falló un comando SMART",
+}
+
+
+def _error_text(code: int, data: dict) -> str:
+    """Motivo legible de que no haya datos SMART.
+
+    Algunos errores (como «Read Device Identity failed») smartctl no los mete en
+    los mensajes del JSON: entonces queda el código de salida.
+    """
     if err := data.get("cerbero_error"):
         return str(err)
-    msgs = [m for m in _messages(data) if m]
-    return "; ".join(msgs)[:300] or "smartctl no devolvió datos SMART"
+    if msgs := [m for m in _messages(data) if m]:
+        return "; ".join(msgs)[:300]
+    reasons = [text for bit, text in _EXIT_REASONS.items() if code & bit]
+    return f"código {code}" + (f": {', '.join(reasons)}" if reasons else "")
 
 
 def _parse_time(value: object) -> datetime | None:
@@ -161,6 +176,7 @@ def check_disk(disk: Disk, previous: dict | None, now: datetime, run: Runner) ->
     if _in_standby(code, data):
         header["estado"] = "standby"
         return {"cerbero": header, "smartctl": prev_data}
+    errors = {"auto" if dtype is None else dtype: _error_text(code, data)}
     if "smart_status" not in data and dtype is None:
         # Puente USB que el modo automático no reconoce: casi siempre es SAT.
         code, retry = run(disk.device, "sat", no_wake)
@@ -169,8 +185,12 @@ def check_disk(disk: Disk, previous: dict | None, now: datetime, run: Runner) ->
             return {"cerbero": header, "smartctl": prev_data}
         if "smart_status" in retry:
             data, dtype = retry, "sat"
+        else:
+            errors["sat"] = _error_text(code, retry)
     if "smart_status" not in data:
-        header.update(estado="error", error=_error_text(data))
+        texts = list(dict.fromkeys(errors.values()))
+        error = texts[0] if len(texts) == 1 else "; ".join(f"{t}: {e}" for t, e in errors.items())
+        header.update(estado="error", error=error)
         return {"cerbero": header, "smartctl": prev_data}
     header.update(leido=header["comprobado"], tipo=dtype or "auto")
     return {"cerbero": header, "smartctl": data}
@@ -260,20 +280,36 @@ def detect(run: Runner = run_smartctl) -> str:
         mount, crypt = (root or sorted(mounts, key=lambda m: len(m[0])) or [("-", False)])[0]
         name = "sistema" if mount == "/" else (Path(mount).name if mount != "-" else dev["name"])
         device = f"{BY_ID}/{ids[dev['path']]}" if dev["path"] in ids else dev["path"]
-        _, data = run(device, None, False)
+        code, data = run(device, None, False)
         dtype = None
         if "smart_status" not in data:
-            _, data = run(device, "sat", False)
+            code, data = run(device, "sat", False)
             dtype = "sat" if "smart_status" in data else None
-        works = "smart_status" in data
-        opts = " ".join(
-            o for o in ("opcional" if crypt else "", f"tipo={dtype}" if dtype else "") if o
-        )
-        note = f"{dev.get('model') or ''} ({dev.get('tran') or '?'})".strip()
-        if not works:
-            note += f" — SIN SMART: {_error_text(data)}"
-        lines.append(f"{name:<9} {device}  {mount}  {opts}".rstrip() + f"  # {note}")
+        model = f"{dev.get('model') or ''} ({dev.get('tran') or '?'})".strip()
+        error = None if "smart_status" in data else _error_text(code, data)
+        lines.append(conf_line(name, device, mount, crypt, dtype, model, error))
     return "\n".join(lines) + "\n"
+
+
+def conf_line(
+    name: str,
+    device: str,
+    mount: str,
+    optional: bool,
+    dtype: str | None,
+    model: str,
+    error: str | None,
+) -> str:
+    """Línea de discos.conf. Un disco sin SMART queda comentado: algunos puentes
+    USB se reinician (y desmontan el disco) si se les insiste con comandos que
+    no entienden, así que el timer no debe tocarlo."""
+    opts = " ".join(
+        o for o in ("opcional" if optional else "", f"tipo={dtype}" if dtype else "") if o
+    )
+    line = f"{name:<9} {device}  {mount}  {opts}".rstrip()
+    if error:
+        return f"# {line}  # {model} — SIN SMART, desactivado: {error}"
+    return f"{line}  # {model}"
 
 
 def main(argv: list[str] | None = None) -> int:

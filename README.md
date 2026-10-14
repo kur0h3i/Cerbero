@@ -296,7 +296,7 @@ en la API). Una variable vacía equivale a no definirla. `.env.example` las docu
 | `TRUSTED_NETWORKS` | `192.168.1.0/24,10.0.0.0/24,100.64.0.0/10` | Rangos de confianza, separados por comas (sustituyen a los de `app/config.py`) |
 | `SMART_DIR` | `/var/lib/cerbero/smart` | Dónde deja los JSON `cerbero-smart.timer` (ruta del host) |
 | `SMART_MAX_AGE_H` | `3` | Horas sin comprobar un disco a partir de las cuales se avisa |
-| `SMART_TEMP_HDD_MAX` | `50` | °C a partir de los cuales un disco duro está caliente |
+| `SMART_TEMP_HDD_MAX` | `55` | °C a partir de los cuales un disco duro está caliente (los de 2,5" en caja USB rondan los 50) |
 | `SMART_TEMP_NVME_MAX` | `70` | °C a partir de los cuales el NVMe está caliente |
 | `LOG_LEVEL` | `INFO` | Nivel del registro |
 
@@ -355,8 +355,13 @@ parado: `systemctl status cerbero-smart.timer` y `journalctl -u cerbero-smart.se
 
 **«No se puede leer SMART de …: Unknown USB bridge».** Añade `tipo=sat` a ese disco en
 `/etc/cerbero/discos.conf` (el volcado ya lo intenta solo) y lanza
-`sudo systemctl start cerbero-smart.service`. Algunas cajas USB no dejan pasar SMART en ningún
-modo; entonces el disco no se puede vigilar.
+`sudo systemctl start cerbero-smart.service`.
+
+**«…: código 2: no se pudo abrir el disco o no respondió a IDENTIFY».** La caja USB no deja
+pasar SMART en ningún modo (le pasa al Seagate Expansion `0bc2:2036`: «Read Device Identity
+failed»). Quita ese disco de `discos.conf` (`sudo sed -i '/^extra /d' /etc/cerbero/discos.conf`):
+algunos puentes se reinician si se les insiste y el disco se desmonta. `--detectar` ya los deja
+comentados. Su espacio libre y que siga montado los vigila igualmente la cabeza de recursos.
 
 **`contenedores: false` y alerta «No se puede consultar Docker».** Comprueba que el socket está
 montado y que Docker funciona (`docker ps` en el host).

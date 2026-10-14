@@ -77,7 +77,8 @@ class Settings(BaseModel):
     smart_dir: str = "/var/lib/cerbero/smart"
     # Horas sin comprobar a partir de las cuales se avisa (el timer se ha parado).
     smart_max_age_h: float = Field(default=3, gt=0)
-    smart_temp_hdd_max: float = Field(default=50, gt=0)
+    # Los discos de 2,5" en caja USB rondan los 50 °C; los fabricantes admiten 60.
+    smart_temp_hdd_max: float = Field(default=55, gt=0)
     smart_temp_nvme_max: float = Field(default=70, gt=0)
 
     log_level: str = "INFO"
