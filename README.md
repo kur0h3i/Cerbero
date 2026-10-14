@@ -458,8 +458,9 @@ parado: `systemctl status cerbero-smart.timer` y `journalctl -u cerbero-smart.se
 pasar SMART en ningún modo (le pasa al Seagate Expansion `0bc2:2036`: «Read Device Identity
 failed»). Quita ese disco de `discos.conf` (`sudo sed -i '/^extra /d' /etc/cerbero/discos.conf`):
 algunos puentes se reinician si se les insiste y el disco se desmonta. `--detectar` ya los deja
-comentados. En la siguiente lectura Cerbero cierra sus alertas. Su espacio libre y que siga
-montado los vigila igualmente la cabeza de recursos.
+comentados. El timer borra su JSON en la siguiente pasada (cada hora, o ya con
+`sudo systemctl start cerbero-smart.service`) y entonces Cerbero cierra sus alertas.
+Su espacio libre y que siga montado los vigila igualmente la cabeza de recursos.
 
 **«La tarea … no se ejecuta».** El timer se ha parado o la sesión de usuario no arranca sin
 login: `systemctl --user list-timers`, `systemctl --user status <tarea>.timer` y
