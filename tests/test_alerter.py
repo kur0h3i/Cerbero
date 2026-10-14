@@ -55,6 +55,21 @@ async def test_fire_sends_once_then_respects_cooldown(
     assert len(notifier.sent) == 1
 
 
+async def test_expire_forgets_old_sends(
+    settings: Settings, notifier: FakeNotifier, clock: FakeClock
+) -> None:
+    alerter = make(settings, notifier, clock)
+    await alerter.fire("recursos:ram", "recursos", "critical", "RAM 0.8 GB")
+    clock.advance(minutes=10)
+    alerter.expire()
+    assert "recursos:ram" in alerter._last_sent
+    clock.advance(minutes=21)
+    alerter.expire()
+    assert alerter._last_sent == {}
+    await alerter.fire("recursos:ram", "recursos", "critical", "RAM 0.8 GB")
+    assert len(notifier.sent) == 2
+
+
 async def test_reminder_after_cooldown_if_problem_persists(
     settings: Settings, notifier: FakeNotifier, clock: FakeClock
 ) -> None:

@@ -240,10 +240,12 @@ class Alerter:
         return self._store.active_keys(prefix)
 
     def expire(self) -> None:
-        """Cierra en silencio los eventos caducados (los disparados con ``ttl``)."""
+        """Cierra en silencio los eventos caducados (``ttl``) y olvida los envíos viejos."""
         now = self._clock()
         for key in self._store.expired_keys(now):
             self._store.resolve(key, now)
+        # Pasado el cooldown, una entrada no cambia nada: así no crece con cada IP atacante.
+        self._last_sent = {k: t for k, t in self._last_sent.items() if now - t < self._cooldown}
 
     async def notify(self, key: str, head: Head, message: str) -> Alert:
         """Aviso informativo 🟢: se envía y queda en el historial, sin cooldown.
