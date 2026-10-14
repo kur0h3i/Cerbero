@@ -1,6 +1,6 @@
 /* Cerbero: misma paleta que Dis y Caronte. Los tokens cambian con el tema.
-   Los colores de estado están validados (contraste ≥ 3:1 en cada superficie) y
-   nunca van solos: siempre con forma (✓ ▲ ✕) y texto. */
+   Texto de estado ≥ 4,5:1 (tokens `-ink`); bordes, rellenos y franjas ≥ 3:1.
+   Los estados nunca van solos: siempre con forma (✓ ▲ ✕) y texto. */
 
 :root {
   --bg: #f8f8f8;
@@ -15,6 +15,8 @@
   --accent-track: rgb(124 58 237 / 0.14);
   --ok: #16a34a;
   --warning: #a67c00;
+  --ok-ink: #15803d;
+  --warning-ink: #8a6500;
   --critical: #dc2626;
   --fire: #ea580c;
   color-scheme: light;
@@ -34,6 +36,8 @@
     --accent-track: rgb(167 139 250 / 0.16);
     --ok: #22c55e;
     --warning: #eab308;
+    --ok-ink: #22c55e;
+    --warning-ink: #eab308;
     --critical: #ef4444;
     --fire: #fb923c;
     color-scheme: dark;
@@ -53,6 +57,8 @@
   --accent-track: rgb(167 139 250 / 0.16);
   --ok: #22c55e;
   --warning: #eab308;
+  --ok-ink: #22c55e;
+  --warning-ink: #eab308;
   --critical: #ef4444;
   --fire: #fb923c;
   color-scheme: dark;
@@ -254,10 +260,12 @@ footer {
   white-space: nowrap;
 }
 .badge.ok {
-  color: var(--ok);
+  color: var(--ok-ink);
+  border-color: var(--ok);
 }
 .badge.warning {
-  color: var(--warning);
+  color: var(--warning-ink);
+  border-color: var(--warning);
 }
 .badge.critical {
   color: var(--critical);
