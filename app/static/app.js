@@ -415,6 +415,7 @@ function renderRecursos(status) {
       );
     }
   }
+  items.push(h('p', { class: 'small faint' }, 'La raya marca el umbral de alerta.'));
   replace('recursos', items);
 }
 
