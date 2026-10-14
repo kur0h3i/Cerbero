@@ -50,7 +50,17 @@ function badge(level, text) {
 }
 
 function replace(id, ...children) {
-  document.getElementById(id).replaceChildren(...children.flat().filter(Boolean));
+  const box = document.getElementById(id);
+  // El repintado borra el elemento con foco: se busca su equivalente para no perderlo.
+  const had = box.contains(document.activeElement) ? document.activeElement : null;
+  const key = (el) => el.getAttribute('href') ?? el.tagName;
+  const wanted = had && key(had);
+  box.replaceChildren(...children.flat().filter(Boolean));
+  if (wanted) {
+    [...box.querySelectorAll('a[href], summary')]
+      .find((el) => key(el) === wanted)
+      ?.focus({ preventScroll: true });
+  }
 }
 
 const fmt = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 1 });
