@@ -280,6 +280,20 @@ async def test_stale_data_means_the_timer_stopped(setup) -> None:
     assert head.healthy()
 
 
+async def test_naive_date_uses_cerbero_zone(setup) -> None:
+    head, host, alerter, _ = setup
+    host.write("archivos", smartctl("ata"))
+    path = host.path / "archivos.json"
+    body = json.loads(path.read_text())
+    body["cerbero"]["comprobado"] = host.clock.now.replace(tzinfo=None).isoformat()
+    path.write_text(json.dumps(body))
+    await head.check()
+    (disk,) = head.snapshot
+    assert disk.comprobado == host.clock.now
+    assert disk.comprobado.tzinfo is head._settings.zone
+    assert not alerter.is_active("smart:antiguo")
+
+
 async def test_nvme_wear(setup) -> None:
     head, host, alerter, _ = setup
     data = smartctl("nvme")

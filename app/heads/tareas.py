@@ -22,7 +22,7 @@ import os
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta, tzinfo
 
 from ..alerter import Alerter
 from ..config import Settings
@@ -48,11 +48,14 @@ class TaskReport:
         return self.resultado == "ok"
 
 
-def parse_report(name: str, payload: dict) -> TaskReport:
+def parse_report(name: str, payload: dict, zone: tzinfo = UTC) -> TaskReport:
     try:
         fin = datetime.fromisoformat(str(payload.get("fin")))
     except ValueError:
         fin = None
+    # Sin zona se toma la de Cerbero: restarla a ``now`` daría TypeError.
+    if fin is not None and fin.tzinfo is None:
+        fin = fin.replace(tzinfo=zone)
     every = payload.get("cada_s")
     return TaskReport(
         tarea=str(payload.get("tarea") or name),
@@ -64,7 +67,7 @@ def parse_report(name: str, payload: dict) -> TaskReport:
     )
 
 
-def read_dir(path: str) -> list[TaskReport]:
+def read_dir(path: str, zone: tzinfo = UTC) -> list[TaskReport]:
     """Lee los informes de la carpeta (bloqueante: usar desde un hilo)."""
     reports = []
     for entry in sorted(os.scandir(path), key=lambda e: e.name):
@@ -74,7 +77,7 @@ def read_dir(path: str) -> list[TaskReport]:
         try:
             with open(entry.path, encoding="utf-8") as fh:
                 payload = json.load(fh)
-            reports.append(parse_report(name, payload if isinstance(payload, dict) else {}))
+            reports.append(parse_report(name, payload if isinstance(payload, dict) else {}, zone))
         except (OSError, ValueError) as exc:
             reports.append(TaskReport(name, "fallo", None, 0, error=f"informe ilegible: {exc}"))
     return reports
@@ -132,7 +135,7 @@ class TareasHead:
     async def check(self) -> None:
         key = f"{HEAD}:sin_datos"
         try:
-            reports = await asyncio.to_thread(read_dir, self._dir)
+            reports = await asyncio.to_thread(read_dir, self._dir, self._settings.zone)
         except OSError as exc:
             self.snapshot, self._readable = [], False
             await self._alerter.fire(

@@ -151,6 +151,20 @@ async def test_weekly_task_is_stale_after_two_weeks(setup) -> None:
     )
 
 
+async def test_naive_date_uses_cerbero_zone(setup) -> None:
+    head, host, alerter, _ = setup
+    host.report("cola-tareas")
+    path = host.path / "cola-tareas.json"
+    body = json.loads(path.read_text())
+    body["fin"] = host.clock.now.replace(tzinfo=None).isoformat()
+    path.write_text(json.dumps(body))
+    await head.check()
+    (report,) = head.snapshot
+    assert report.fin == host.clock.now
+    assert report.fin.tzinfo is head._settings.zone
+    assert alerter.store.list() == []
+
+
 async def test_broken_report(setup) -> None:
     head, host, alerter, _ = setup
     (host.path / "roto.json").write_text("{")

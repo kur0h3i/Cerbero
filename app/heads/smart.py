@@ -26,7 +26,7 @@ import os
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta, tzinfo
 
 from ..alerter import Alerter
 from ..config import Settings
@@ -76,18 +76,20 @@ class DiskHealth:
         return f"{self.nombre} ({self.montaje})" if self.montaje else self.nombre
 
 
-def _time(value: object) -> datetime | None:
+def _time(value: object, zone: tzinfo) -> datetime | None:
     try:
-        return datetime.fromisoformat(str(value)) if value else None
+        dt = datetime.fromisoformat(str(value)) if value else None
     except ValueError:
         return None
+    # Sin zona se toma la de Cerbero: restarla a ``now`` daría TypeError.
+    return dt.replace(tzinfo=zone) if dt is not None and dt.tzinfo is None else dt
 
 
 def _int(value: object) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
-def parse_disk(name: str, payload: dict) -> DiskHealth:
+def parse_disk(name: str, payload: dict, zone: tzinfo = UTC) -> DiskHealth:
     """Convierte el JSON que deja ``cerbero_smart.py`` en un ``DiskHealth``."""
     head = payload.get("cerbero") or {}
     data = payload.get("smartctl") or {}
@@ -97,8 +99,8 @@ def parse_disk(name: str, payload: dict) -> DiskHealth:
         dispositivo=str(head.get("dispositivo") or ""),
         montaje=head.get("montaje") or None,
         opcional=bool(head.get("opcional")),
-        comprobado=_time(head.get("comprobado")),
-        leido=_time(head.get("leido")),
+        comprobado=_time(head.get("comprobado"), zone),
+        leido=_time(head.get("leido"), zone),
         error=head.get("error") or None,
         modelo=data.get("model_name"),
         protocolo=(data.get("device") or {}).get("protocol"),
@@ -126,7 +128,7 @@ def parse_disk(name: str, payload: dict) -> DiskHealth:
     return disk
 
 
-def read_dir(path: str) -> list[DiskHealth]:
+def read_dir(path: str, zone: tzinfo = UTC) -> list[DiskHealth]:
     """Lee todos los ``<disco>.json`` de la carpeta (bloqueante: usar desde un hilo)."""
     disks = []
     for entry in sorted(os.scandir(path), key=lambda e: e.name):
@@ -136,7 +138,7 @@ def read_dir(path: str) -> list[DiskHealth]:
         try:
             with open(entry.path, encoding="utf-8") as fh:
                 payload = json.load(fh)
-            disks.append(parse_disk(name, payload if isinstance(payload, dict) else {}))
+            disks.append(parse_disk(name, payload if isinstance(payload, dict) else {}, zone))
         except (OSError, ValueError) as exc:
             disks.append(DiskHealth(name, "error", error=f"JSON ilegible: {exc}"))
     return disks
@@ -179,7 +181,7 @@ class SmartHead:
     async def check(self) -> None:
         key = f"{HEAD}:sin_datos"
         try:
-            disks = await asyncio.to_thread(read_dir, self._dir)
+            disks = await asyncio.to_thread(read_dir, self._dir, self._settings.zone)
         except OSError as exc:
             disks, reason = [], exc.strerror or type(exc).__name__
         else:

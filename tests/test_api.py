@@ -62,7 +62,7 @@ def client(tmp_path: Path, settings: Settings, notifier: FakeNotifier):
     informe = {
         "tarea": "cola-tareas",
         "resultado": "ok",
-        "fin": now,
+        "fin": settings.now().replace(tzinfo=None).isoformat(),  # sin zona
         "cada_s": 1800,
         "resumen": "ok",
     }
@@ -215,6 +215,13 @@ def test_status(client: TestClient) -> None:
             {"name": "nginx", "status": "running", "health": "healthy", "restarts": 2},
         ],
     }
+
+
+def test_status_survives_a_report_date_without_zone(client: TestClient) -> None:
+    response = client.get("/api/status")
+    assert response.status_code == 200
+    (task,) = response.json()["tareas"]
+    assert task["fin"].endswith(("+01:00", "+02:00")) and task["parada"] is False
 
 
 def test_health_degraded_when_a_head_is_blind(

@@ -291,6 +291,8 @@ Cerbero lo lee cada minuto. Vale para cualquier tarea: basta con que escriba un 
  "cada_s": 604800, "resumen": "🧹 Liberados 566 MB (12 imágenes)", "avisar": true, "detalle": {}}
 ```
 
+Si `fin` no lleva zona horaria, se interpreta en la `TZ` de Cerbero.
+
 | Aviso | Nivel | Cuándo | Cuándo se resuelve |
 |-------|-------|--------|--------------------|
 | La tarea ha fallado | 🟡 | `resultado: "fallo"` | Con el siguiente informe correcto |
