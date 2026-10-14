@@ -223,6 +223,13 @@ def dump_all(disks: list[Disk], out_dir: Path, now: datetime, run: Runner = run_
         head = result["cerbero"]
         print(f"{disk.name}: {head['estado']}" + (f" ({head['error']})" if head["error"] else ""))
         errors += head["estado"] == "error"
+    # Los discos que ya no están en discos.conf dejan de vigilarse: si su JSON se
+    # quedara, Cerbero avisaría de que lleva horas sin actualizarse.
+    configured = {f"{d.name}.json" for d in disks}
+    for old in out_dir.glob("*.json"):
+        if old.name not in configured:
+            old.unlink()
+            print(f"{old.stem}: ya no está en discos.conf, borrado")
     return errors
 
 

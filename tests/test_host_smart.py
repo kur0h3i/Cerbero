@@ -228,3 +228,12 @@ def test_mounts_follow_luks_children() -> None:
         ],
     }
     assert cs._mounts(node) == [("/srv/secure", True)]
+
+
+def test_disks_removed_from_conf_are_forgotten(tmp_path: Path, device: str) -> None:
+    out_dir = tmp_path / "smart"
+    out_dir.mkdir()
+    (out_dir / "extra.json").write_text("{}")  # de cuando estaba en discos.conf
+    run = FakeSmartctl({None: (0, fixture("smartctl_ata.json"))})
+    cs.dump_all([cs.Disk("archivos", device)], out_dir, NOW, run)
+    assert sorted(p.name for p in out_dir.iterdir()) == ["archivos.json"]
