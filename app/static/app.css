@@ -507,7 +507,7 @@ td.nowrap {
   .head:last-child:nth-child(odd) {
     grid-column: 1 / -1;
   }
-  .alerts li {
+  .alerts li:has(.alert-msg) {
     grid-template-columns: 1fr;
   }
   .alert-meta {
