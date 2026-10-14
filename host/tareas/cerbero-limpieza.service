@@ -1,0 +1,13 @@
+[Unit]
+Description=Cerbero: limpieza semanal de imágenes Docker
+Documentation=https://github.com/kur0h3i/Cerbero
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 %h/.local/lib/cerbero/cerbero_limpieza.py
+# Si el script muere sin dejar informe (un error inesperado, un timeout), que
+# Cerbero se entere igualmente.
+ExecStopPost=/usr/bin/python3 %h/.local/lib/cerbero/informe_tarea.py systemd --tarea limpieza-docker --cada 604800 --solo-fallos
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=45min

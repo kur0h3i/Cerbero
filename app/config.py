@@ -81,6 +81,13 @@ class Settings(BaseModel):
     smart_temp_hdd_max: float = Field(default=55, gt=0)
     smart_temp_nvme_max: float = Field(default=70, gt=0)
 
+    # --- Tareas del host -----------------------------------------------------
+    # Donde dejan sus informes las tareas programadas (ver host/tareas/).
+    tareas_dir: str = "/var/lib/cerbero/tareas"
+    # Una tarea "no se ejecuta" si su último informe es más viejo que su
+    # periodo multiplicado por esto (cola-tareas, cada 30 min: aviso a la hora).
+    tareas_tolerancia: float = Field(default=2, ge=1)
+
     log_level: str = "INFO"
 
     @field_validator("disks", "containers_ignore", "trusted_networks", mode="before")

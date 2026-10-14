@@ -26,6 +26,7 @@ from .heads.accesos import AccesosHead
 from .heads.contenedores import ContenedoresHead
 from .heads.recursos import RecursosHead
 from .heads.smart import SmartHead
+from .heads.tareas import TareasHead
 from .store import AlertStore
 
 log = logging.getLogger("cerbero")
@@ -46,13 +47,14 @@ class Cerbero:
     contenedores: ContenedoresHead
     accesos: AccesosHead
     smart: SmartHead
+    tareas: TareasHead
 
     @property
-    def heads(self) -> list[RecursosHead | ContenedoresHead | AccesosHead | SmartHead]:
-        return [self.recursos, self.contenedores, self.accesos, self.smart]
+    def heads(self) -> list[RecursosHead | ContenedoresHead | AccesosHead | SmartHead | TareasHead]:
+        return [self.recursos, self.contenedores, self.accesos, self.smart, self.tareas]
 
 
-Heads = tuple[RecursosHead, ContenedoresHead, AccesosHead, SmartHead]
+Heads = tuple[RecursosHead, ContenedoresHead, AccesosHead, SmartHead, TareasHead]
 HeadsFactory = Callable[[Settings, Alerter], Heads]
 
 
@@ -62,6 +64,7 @@ def default_heads(settings: Settings, alerter: Alerter) -> Heads:
         ContenedoresHead(settings, alerter),
         AccesosHead(settings, alerter),
         SmartHead(settings, alerter),
+        TareasHead(settings, alerter),
     )
 
 
@@ -105,7 +108,7 @@ def create_app(
             tasks.append(
                 asyncio.create_task(
                     alerter.announce(
-                        "Cerbero en guardia: recursos, contenedores, accesos y discos"
+                        "Cerbero en guardia: recursos, contenedores, accesos, discos y tareas"
                     ),
                     name="aviso-arranque",
                 )

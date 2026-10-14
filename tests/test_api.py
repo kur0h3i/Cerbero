@@ -13,6 +13,7 @@ from app.heads.accesos import AccesosHead, LogTailer
 from app.heads.contenedores import ContainerInfo, ContenedoresHead
 from app.heads.recursos import DiskSample, RecursosHead, Sample
 from app.heads.smart import SmartHead
+from app.heads.tareas import TareasHead
 from app.main import create_app
 from tests.conftest import FakeNotifier
 
@@ -56,7 +57,19 @@ def client(tmp_path: Path, settings: Settings, notifier: FakeNotifier):
     now = settings.now().isoformat()
     head = {"nombre": "sistema", "montaje": "/", "estado": "ok", "comprobado": now, "leido": now}
     (smart_dir / "sistema.json").write_text(json.dumps({"cerbero": head, "smartctl": disk}))
-    settings = settings.model_copy(update={"smart_dir": str(smart_dir)})
+    tareas_dir = tmp_path / "tareas"
+    tareas_dir.mkdir()
+    informe = {
+        "tarea": "cola-tareas",
+        "resultado": "ok",
+        "fin": now,
+        "cada_s": 1800,
+        "resumen": "ok",
+    }
+    (tareas_dir / "cola-tareas.json").write_text(json.dumps(informe))
+    settings = settings.model_copy(
+        update={"smart_dir": str(smart_dir), "tareas_dir": str(tareas_dir)}
+    )
 
     def heads(s: Settings, alerter: Alerter):
         return (
@@ -64,6 +77,7 @@ def client(tmp_path: Path, settings: Settings, notifier: FakeNotifier):
             ContenedoresHead(s, alerter, source=FakeSource()),
             AccesosHead(s, alerter, tailer=LogTailer(str(log))),
             SmartHead(s, alerter),
+            TareasHead(s, alerter),
         )
 
     app = create_app(settings, notifier=notifier, heads=heads)
@@ -85,7 +99,13 @@ def _until(condition, timeout: float = 3.0) -> None:
 def test_health(client: TestClient) -> None:
     assert client.get("/api/health").json() == {
         "status": "ok",
-        "heads": {"recursos": True, "contenedores": True, "accesos": True, "smart": True},
+        "heads": {
+            "recursos": True,
+            "contenedores": True,
+            "accesos": True,
+            "smart": True,
+            "tareas": True,
+        },
     }
 
 
@@ -133,6 +153,8 @@ def test_alerts_active_filter(client: TestClient) -> None:
 
 def test_status(client: TestClient) -> None:
     body = client.get("/api/status").json()
+    (task,) = body.pop("tareas")
+    assert (task["tarea"], task["resultado"], task["parada"]) == ("cola-tareas", "ok", False)
     (disk,) = body.pop("smart")
     assert disk["nombre"] == "sistema"
     assert disk["montaje"] == "/"
@@ -176,6 +198,7 @@ def test_health_degraded_when_a_head_is_blind(
             ContenedoresHead(s, alerter, source=FakeSource()),
             AccesosHead(s, alerter, tailer=LogTailer(str(tmp_path / "no-existe.log"))),
             SmartHead(s, alerter),
+            TareasHead(s, alerter),
         )
 
     with TestClient(create_app(settings, notifier=notifier, heads=heads)) as c:

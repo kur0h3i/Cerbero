@@ -5,8 +5,8 @@
 <h1 align="center">Cerbero</h1>
 
 Monitor de seguridad y estado de **server-kuro**. Vigila a la vez los recursos del host, los
-contenedores Docker, los accesos SSH y la salud de los discos, y avisa por Telegram cuando algo
-va mal. No sustituye
+contenedores Docker, los accesos SSH, la salud de los discos y las tareas programadas del
+servidor, y avisa por Telegram cuando algo va mal. No sustituye
 a Netdata en métricas detalladas: es la capa propia que solo avisa de lo que importa, sobre
 todo en seguridad. Expone una API REST que consume [Dis](https://github.com/kur0h3i/Dis).
 
@@ -21,6 +21,8 @@ todo en seguridad. Expone una API REST que consume [Dis](https://github.com/kur0
   e intentos con usuarios válidos desde fuera. Sin fail2ban.
 - **Discos (SMART)**: discos que fallan, sectores dañados, temperatura y desgaste del NVMe,
   leídos en el host por un timer de root para que Cerbero siga sin privilegios.
+- **Tareas del host**: avisa si una tarea programada falla o deja de ejecutarse, y resume lo que
+  hizo la limpieza semanal de imágenes Docker («🧹 Liberados 566 MB»).
 - **Avisos que no hacen spam**: cooldown por alerta, recordatorio si el problema persiste y
   🟢 [RESUELTO] cuando se normaliza.
 - **Ligero y de solo lectura**: un contenedor de ~50 MiB de RAM sin privilegios que nunca
@@ -92,6 +94,26 @@ Instala `smartmontools`, genera `/etc/cerbero/discos.conf` con los discos que en
 nombres, montajes y `opcional` para los que se montan a mano) y activa `cerbero-smart.timer`,
 que cada hora deja un JSON por disco en `/var/lib/cerbero/smart/`. Detalles en la
 [cabeza 4](#cabeza-4--discos-smart).
+
+### En el host: las tareas
+
+Las tareas son timers de systemd **de usuario** (sin root; hace falta estar en el grupo
+`docker` y tener *linger*: `loginctl show-user $USER -P Linger` → `yes`). Una sola vez, con
+sudo, la carpeta donde dejan sus informes:
+
+```bash
+sudo install -d -m 755 -o "$USER" -g "$USER" /var/lib/cerbero/tareas
+```
+
+Y después, con tu usuario y sin sudo:
+
+```bash
+host/tareas/instalar.sh
+systemctl --user start cerbero-limpieza.service   # opcional: limpiar ya
+cat /var/lib/cerbero/tareas/limpieza-docker.json
+```
+
+Detalles en [tareas del host](#tareas-del-host).
 
 ## Conectarlo con Dis
 
@@ -232,6 +254,36 @@ secure    /dev/disk/by-id/ata-WDC_WD50NDZW-11C8XS1_WD-WX00BBBB2222        /srv/s
 Para ver qué haría con tus discos sin instalar nada: `sudo python3
 host/smart/cerbero_smart.py --detectar`.
 
+### Tareas del host
+
+Cada tarea programada deja su último resultado en `/var/lib/cerbero/tareas/<tarea>.json` y
+Cerbero lo lee cada minuto. Vale para cualquier tarea: basta con que escriba un informe así
+(`host/tareas/informe_tarea.py` lo hace por ti):
+
+```json
+{"version": 1, "tarea": "limpieza-docker", "resultado": "ok", "fin": "2026-10-18T04:31:07+02:00",
+ "cada_s": 604800, "resumen": "🧹 Liberados 566 MB (12 imágenes)", "avisar": true, "detalle": {}}
+```
+
+| Aviso | Nivel | Cuándo | Cuándo se resuelve |
+|-------|-------|--------|--------------------|
+| La tarea ha fallado | 🟡 | `resultado: "fallo"` | Con el siguiente informe correcto |
+| La tarea no se ejecuta | 🟡 | El último informe es más viejo que `cada_s` × `TAREAS_TOLERANCIA` (el timer se ha parado) | Llega un informe nuevo |
+| Resumen | 🟢 | Un informe nuevo, correcto y con `avisar: true`: se manda su `resumen` una vez | — (queda en el historial) |
+
+Para engancharlo a una unidad de systemd que ya existe, sin tocar su código, basta con un
+`ExecStopPost=`: systemd lo ejecuta también cuando el servicio falla y le dice cómo terminó.
+
+```ini
+ExecStopPost=/usr/bin/python3 %h/.local/lib/cerbero/informe_tarea.py systemd --tarea mi-tarea --cada 3600
+```
+
+**Limpieza semanal de imágenes Docker** (`cerbero-limpieza.timer`, de usuario). Los domingos a
+las 04:30 (o al arrancar, si el servidor estaba apagado) ejecuta
+`docker image prune -a -f --filter until=168h`: borra las imágenes que no usa ningún contenedor
+y tienen más de 7 días. Manda «🧹 Liberados X MB (N imágenes)» si ha borrado algo; si falla, 🟡
+con el motivo. Quien borra es el timer, con tus permisos: Cerbero sigue sin escribir en Docker.
+
 ## Alertas
 
 Cada cabeza dispara alertas con uno de tres niveles: `info` 🟢, `warning` 🟡 y `critical` 🔴.
@@ -298,6 +350,8 @@ en la API). Una variable vacía equivale a no definirla. `.env.example` las docu
 | `SMART_MAX_AGE_H` | `3` | Horas sin comprobar un disco a partir de las cuales se avisa |
 | `SMART_TEMP_HDD_MAX` | `55` | °C a partir de los cuales un disco duro está caliente (los de 2,5" en caja USB rondan los 50) |
 | `SMART_TEMP_NVME_MAX` | `70` | °C a partir de los cuales el NVMe está caliente |
+| `TAREAS_DIR` | `/var/lib/cerbero/tareas` | Dónde dejan sus informes las tareas (ruta del host) |
+| `TAREAS_TOLERANCIA` | `2` | Una tarea «no se ejecuta» si su informe tiene más de su periodo por esto |
 | `LOG_LEVEL` | `INFO` | Nivel del registro |
 
 ### Qué monta el compose
@@ -305,7 +359,7 @@ en la API). Una variable vacía equivale a no definirla. `.env.example` las docu
 | Montaje | Para qué |
 |---------|----------|
 | `/var/run/docker.sock` (`:ro`) | Cabeza de contenedores: listar, inspeccionar y leer eventos |
-| `/` → `/hostfs` (`:ro`) | Discos (`/srv/archivos` y `/srv/extra` entran por ser submontajes), `/var/log/auth.log` y los JSON de `/var/lib/cerbero/` |
+| `/` → `/hostfs` (`:ro`) | Discos (`/srv/archivos` y `/srv/extra` entran por ser submontajes), `/var/log/auth.log` y los JSON de `/var/lib/cerbero/` (SMART y tareas) |
 
 Se monta la raíz y no `auth.log` suelto a propósito: el bind mount de un fichero se queda
 apuntando al viejo cuando logrotate lo rota, y Cerbero dejaría de ver accesos sin avisar.
@@ -328,6 +382,9 @@ No hacen falta `pid: host`, `network_mode: host` ni `SYS_PTRACE`: CPU y RAM del 
 - **Lo que necesita root se queda en el host.** `cerbero-smart.service` es el único que corre
   como root (`smartctl` habla directamente con los discos), con la unidad cerrada: sin red,
   sistema de ficheros de solo lectura salvo `/var/lib/cerbero/smart` y sin acceso a `/home`.
+- **Las tareas no son de Cerbero.** La limpieza de imágenes la hace un timer de tu usuario con
+  sus permisos de Docker; Cerbero solo lee su informe. Los informes van a `/var/lib/cerbero/`
+  y no a tu home porque este es `700` y Cerbero, sin capacidades, no podría entrar.
 - **El token de Telegram** va en `.env` (ignorado por git) y nunca aparece en los registros:
   httpx está silenciado porque escribiría la URL, que lo contiene.
 - **Las entradas de `auth.log` no son de fiar.** El nombre de usuario lo controla quien se
@@ -363,6 +420,13 @@ failed»). Quita ese disco de `discos.conf` (`sudo sed -i '/^extra /d' /etc/cerb
 algunos puentes se reinician si se les insiste y el disco se desmonta. `--detectar` ya los deja
 comentados. Su espacio libre y que siga montado los vigila igualmente la cabeza de recursos.
 
+**«La tarea … no se ejecuta».** El timer se ha parado o la sesión de usuario no arranca sin
+login: `systemctl --user list-timers`, `systemctl --user status <tarea>.timer` y
+`loginctl show-user $USER -P Linger` (debe decir `yes`; si no, `sudo loginctl enable-linger $USER`).
+
+**`tareas: false` y alerta «No se pueden leer los informes de tareas».** Falta la carpeta:
+`sudo install -d -m 755 -o "$USER" -g "$USER" /var/lib/cerbero/tareas`.
+
 **`contenedores: false` y alerta «No se puede consultar Docker».** Comprueba que el socket está
 montado y que Docker funciona (`docker ps` en el host).
 
@@ -373,9 +437,9 @@ Documentación interactiva en `/api/docs`.
 
 | Método | Ruta | Respuesta |
 |--------|------|-----------|
-| GET | `/api/health` | `{status, heads: {recursos, contenedores, accesos, smart}}` |
+| GET | `/api/health` | `{status, heads: {recursos, contenedores, accesos, smart, tareas}}` |
 | GET | `/api/alerts` | `{connected: true, alerts: [...]}`; `?active=true` deja solo las activas |
-| GET | `/api/status` | `{cpu_pct, ram_free_gb, ram_total_gb, disks: [...], containers: [...], smart: [...]}` |
+| GET | `/api/status` | `{cpu_pct, ram_free_gb, ram_total_gb, disks, containers, smart, tareas}` |
 
 `/api/health` responde `status: "ok"` si las tres cabezas funcionan y `"degraded"` si alguna no
 (p. ej., la de accesos si no puede leer `auth.log`); cada cabeza, `true` o `false`.
@@ -401,8 +465,8 @@ reciente a la más antigua:
 }
 ```
 
-`/api/status` es la última lectura de las cabezas 1, 2 y 4 (valores `null` durante los
-primeros segundos tras arrancar):
+`/api/status` es la última lectura de recursos, contenedores, SMART y tareas (valores `null`
+durante los primeros segundos tras arrancar):
 
 ```json
 {
@@ -417,6 +481,10 @@ primeros segundos tras arrancar):
     {"nombre": "archivos", "estado": "ok", "montaje": "/srv/archivos", "modelo": "WDC WD50NDZW-11C8XS1",
      "salud": true, "temp_c": 38, "horas": 9012, "reasignados": 0, "pendientes": 0, "incorregibles": 0,
      "comprobado": "2026-10-14T10:00:03+02:00", "leido": "2026-10-14T10:00:03+02:00", "...": "..."}
+  ],
+  "tareas": [
+    {"tarea": "limpieza-docker", "resultado": "ok", "fin": "2026-10-18T04:31:07+02:00",
+     "cada_s": 604800, "resumen": "🧹 Liberados 566 MB (12 imágenes)", "parada": false}
   ]
 }
 ```
@@ -446,9 +514,11 @@ app/
     ├── recursos.py      cabeza 1: psutil
     ├── contenedores.py  cabeza 2: Docker SDK
     ├── accesos.py       cabeza 3: tail de auth.log
-    └── smart.py         cabeza 4: JSON de SMART que deja el host
+    ├── smart.py         cabeza 4: JSON de SMART que deja el host
+    └── tareas.py        informes de las tareas programadas del host
 host/
-└── smart/               volcado SMART en el host (root): script, unidades e instalador
+├── smart/               volcado SMART en el host (root): script, unidades e instalador
+└── tareas/              tareas de usuario: informes, limpieza semanal e instalador
 tests/                   pytest (sin Docker, red ni discos: todo con dobles)
 assets/                  logo
 ```

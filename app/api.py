@@ -2,7 +2,7 @@
 
 - ``GET /api/health``  estado de cada cabeza
 - ``GET /api/alerts``  alertas activas y últimas resueltas: ``{connected, alerts}``
-- ``GET /api/status``  última lectura de recursos, contenedores y SMART
+- ``GET /api/status``  última lectura de recursos, contenedores, SMART y tareas
 
 Sin autenticación: Cerbero solo es accesible dentro de la LAN y la tailnet.
 Solo lectura: no hay ninguna ruta que modifique nada.
@@ -75,6 +75,15 @@ class SmartDiskOut(BaseModel):
     desgaste_pct: int | None
 
 
+class TaskOut(BaseModel):
+    tarea: str
+    resultado: str  # ok | fallo
+    fin: datetime | None
+    cada_s: int
+    resumen: str
+    parada: bool  # el último informe es demasiado viejo
+
+
 class StatusOut(BaseModel):
     # ``None`` hasta la primera lectura (unos segundos tras arrancar).
     cpu_pct: float | None = None
@@ -83,6 +92,7 @@ class StatusOut(BaseModel):
     disks: list[DiskOut] = []
     containers: list[ContainerOut] = []
     smart: list[SmartDiskOut] = []
+    tareas: list[TaskOut] = []
 
 
 def _cerbero(request: Request) -> Cerbero:
@@ -120,4 +130,17 @@ def status(request: Request) -> StatusOut:
         ]
     if (disks := cerbero.smart.snapshot) is not None:
         out.smart = [SmartDiskOut(**asdict(d)) for d in disks]
+    if (reports := cerbero.tareas.snapshot) is not None:
+        now = cerbero.settings.now()
+        out.tareas = [
+            TaskOut(
+                tarea=r.tarea,
+                resultado=r.resultado,
+                fin=r.fin,
+                cada_s=r.cada_s,
+                resumen=r.error or r.resumen,
+                parada=cerbero.tareas.is_stale(r, now),
+            )
+            for r in reports
+        ]
     return out

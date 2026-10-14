@@ -22,9 +22,9 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 Level = Literal["info", "warning", "critical"]
-Head = Literal["recursos", "contenedores", "accesos", "smart"]
+Head = Literal["recursos", "contenedores", "accesos", "smart", "tareas"]
 
-HEADS: tuple[Head, ...] = ("recursos", "contenedores", "accesos", "smart")
+HEADS: tuple[Head, ...] = ("recursos", "contenedores", "accesos", "smart", "tareas")
 SEVERITY: dict[Level, int] = {"info": 0, "warning": 1, "critical": 2}
 HISTORY_SIZE = 50
 
@@ -94,6 +94,22 @@ class AlertStore:
         alert.active = False
         alert.resolved_at = now
         alert.expires_at = None
+        self._history.append(alert)
+        return alert
+
+    def record(self, key: str, head: Head, level: Level, message: str, now: datetime) -> Alert:
+        """Apunta en el historial algo que no es una condición abierta (un aviso
+        informativo, como el resumen de la limpieza semanal)."""
+        alert = Alert(
+            id=secrets.token_hex(6),
+            key=key,
+            level=level,
+            head=head,
+            message=message,
+            timestamp=now,
+            active=False,
+            resolved_at=now,
+        )
         self._history.append(alert)
         return alert
 

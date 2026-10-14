@@ -41,6 +41,7 @@ HEAD_LABEL: dict[Head, str] = {
     "contenedores": "Contenedores",
     "accesos": "Accesos",
     "smart": "Discos (SMART)",
+    "tareas": "Tareas",
 }
 
 TIME_FMT = "%Y-%m-%d %H:%M:%S"
@@ -239,6 +240,17 @@ class Alerter:
         now = self._clock()
         for key in self._store.expired_keys(now):
             self._store.resolve(key, now)
+
+    async def notify(self, key: str, head: Head, message: str) -> Alert:
+        """Aviso informativo 🟢: se envía y queda en el historial, sin cooldown.
+
+        Para hechos puntuales que no son un problema (el resumen de una tarea).
+        """
+        now = self._clock()
+        alert = self._store.record(key, head, "info", message, now)
+        text = format_message(LEVEL_LABEL["info"], head, message, self._settings.server_name, now)
+        alert.notified = await self._notifier.send(text)
+        return alert
 
     async def announce(self, message: str) -> None:
         """Mensaje informativo que no es una alerta (p. ej., el arranque)."""

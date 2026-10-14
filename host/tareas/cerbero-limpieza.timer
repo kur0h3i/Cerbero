@@ -1,0 +1,11 @@
+[Unit]
+Description=Cerbero: limpieza de imágenes Docker los domingos de madrugada
+
+[Timer]
+OnCalendar=Sun *-*-* 04:30:00
+RandomizedDelaySec=10min
+# Si el servidor estaba apagado a esa hora, se hace al arrancar.
+Persistent=true
+
+[Install]
+WantedBy=timers.target
