@@ -417,8 +417,10 @@ No hacen falta `pid: host`, `network_mode: host` ni `SYS_PTRACE`: CPU y RAM del 
 - **La API no tiene autenticación** y es de solo lectura. Solo publica el puerto 9666 en la LAN
   (`192.168.1.60`) y en Tailscale (`100.87.200.60`), no en todas las interfaces: tampoco lo
   redirijas en el router. Si Tailscale no ha levantado su IP cuando Docker arranca el
-  contenedor, este no arranca (`docker compose up -d` otra vez cuando ya esté). Otra IP o red:
-  cambia las líneas de `ports` en `docker-compose.yml`.
+  contenedor, este no arranca (`docker compose up -d` otra vez cuando ya esté) y se pierde
+  también la LAN, sin aviso. Para evitarlo, permite enlazar IPs aún no presentes: crea
+  `/etc/sysctl.d/99-cerbero.conf` con la línea `net.ipv4.ip_nonlocal_bind=1` y aplícalo con
+  `sudo sysctl --system`. Otra IP o red: cambia las líneas de `ports` en `docker-compose.yml`.
 - **Lo que necesita root se queda en el host.** `cerbero-smart.service` es el único que corre
   como root (`smartctl` habla directamente con los discos), con la unidad cerrada: sin red,
   sistema de ficheros de solo lectura salvo `/var/lib/cerbero/smart` y sin acceso a `/home`.
