@@ -1,0 +1,11 @@
+[Unit]
+Description=Cerbero: volcado SMART cada hora
+
+[Timer]
+OnBootSec=3min
+OnCalendar=hourly
+RandomizedDelaySec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

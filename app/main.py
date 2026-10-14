@@ -25,6 +25,7 @@ from .config import Settings, load_settings
 from .heads.accesos import AccesosHead
 from .heads.contenedores import ContenedoresHead
 from .heads.recursos import RecursosHead
+from .heads.smart import SmartHead
 from .store import AlertStore
 
 log = logging.getLogger("cerbero")
@@ -44,22 +45,23 @@ class Cerbero:
     recursos: RecursosHead
     contenedores: ContenedoresHead
     accesos: AccesosHead
+    smart: SmartHead
 
     @property
-    def heads(self) -> list[RecursosHead | ContenedoresHead | AccesosHead]:
-        return [self.recursos, self.contenedores, self.accesos]
+    def heads(self) -> list[RecursosHead | ContenedoresHead | AccesosHead | SmartHead]:
+        return [self.recursos, self.contenedores, self.accesos, self.smart]
 
 
-HeadsFactory = Callable[[Settings, Alerter], tuple[RecursosHead, ContenedoresHead, AccesosHead]]
+Heads = tuple[RecursosHead, ContenedoresHead, AccesosHead, SmartHead]
+HeadsFactory = Callable[[Settings, Alerter], Heads]
 
 
-def default_heads(
-    settings: Settings, alerter: Alerter
-) -> tuple[RecursosHead, ContenedoresHead, AccesosHead]:
+def default_heads(settings: Settings, alerter: Alerter) -> Heads:
     return (
         RecursosHead(settings, alerter),
         ContenedoresHead(settings, alerter),
         AccesosHead(settings, alerter),
+        SmartHead(settings, alerter),
     )
 
 
@@ -102,7 +104,9 @@ def create_app(
         if settings.notify_startup:
             tasks.append(
                 asyncio.create_task(
-                    alerter.announce("Cerbero en guardia: recursos, contenedores y accesos"),
+                    alerter.announce(
+                        "Cerbero en guardia: recursos, contenedores, accesos y discos"
+                    ),
                     name="aviso-arranque",
                 )
             )

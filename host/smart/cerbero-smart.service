@@ -1,0 +1,16 @@
+[Unit]
+Description=Cerbero: volcado SMART de los discos
+Documentation=https://github.com/kur0h3i/Cerbero
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/lib/cerbero/cerbero_smart.py
+Nice=10
+IOSchedulingClass=idle
+# smartctl necesita root para hablar con los discos; el resto, cerrado.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/cerbero/smart
+ProtectHome=yes
+PrivateTmp=yes
+PrivateNetwork=yes

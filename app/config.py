@@ -72,6 +72,14 @@ class Settings(BaseModel):
         default_factory=lambda: [ip_network(n) for n in TRUSTED_NETWORKS]
     )
 
+    # --- Cabeza 4: salud de discos (SMART) --------------------------------------
+    # Donde deja los JSON cerbero-smart.timer en el host (ver host/smart/).
+    smart_dir: str = "/var/lib/cerbero/smart"
+    # Horas sin comprobar a partir de las cuales se avisa (el timer se ha parado).
+    smart_max_age_h: float = Field(default=3, gt=0)
+    smart_temp_hdd_max: float = Field(default=50, gt=0)
+    smart_temp_nvme_max: float = Field(default=70, gt=0)
+
     log_level: str = "INFO"
 
     @field_validator("disks", "containers_ignore", "trusted_networks", mode="before")

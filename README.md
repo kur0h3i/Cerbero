@@ -4,8 +4,9 @@
 
 <h1 align="center">Cerbero</h1>
 
-Monitor de seguridad y estado de **server-kuro**. Vigila tres frentes a la vez —recursos del
-host, contenedores Docker y accesos SSH— y avisa por Telegram cuando algo va mal. No sustituye
+Monitor de seguridad y estado de **server-kuro**. Vigila a la vez los recursos del host, los
+contenedores Docker, los accesos SSH y la salud de los discos, y avisa por Telegram cuando algo
+va mal. No sustituye
 a Netdata en métricas detalladas: es la capa propia que solo avisa de lo que importa, sobre
 todo en seguridad. Expone una API REST que consume [Dis](https://github.com/kur0h3i/Dis).
 
@@ -18,6 +19,8 @@ todo en seguridad. Expone una API REST que consume [Dis](https://github.com/kur0
   healthchecks `unhealthy`.
 - **Accesos**: fuerza bruta por SSH, logins aceptados desde fuera de la LAN/WireGuard/Tailscale
   e intentos con usuarios válidos desde fuera. Sin fail2ban.
+- **Discos (SMART)**: discos que fallan, sectores dañados, temperatura y desgaste del NVMe,
+  leídos en el host por un timer de root para que Cerbero siga sin privilegios.
 - **Avisos que no hacen spam**: cooldown por alerta, recordatorio si el problema persiste y
   🟢 [RESUELTO] cuando se normaliza.
 - **Ligero y de solo lectura**: un contenedor de ~50 MiB de RAM sin privilegios que nunca
@@ -75,6 +78,20 @@ for i in $(seq 11); do ssh -o BatchMode=yes -o ConnectTimeout=3 noexiste@192.168
 
 Llega un 🟡 *Fuerza bruta SSH* (amarillo porque la IP es de confianza; desde fuera sería 🔴), y
 un 🟢 [RESUELTO] a los 5 minutos.
+
+### En el host: el volcado SMART
+
+Leer SMART necesita root y Cerbero no lo tiene, así que lo hace un timer de systemd en el host
+y Cerbero solo lee el resultado. Desde la carpeta del repo:
+
+```bash
+sudo host/smart/instalar.sh
+```
+
+Instala `smartmontools`, genera `/etc/cerbero/discos.conf` con los discos que encuentra (revísalo:
+nombres, montajes y `opcional` para los que se montan a mano) y activa `cerbero-smart.timer`,
+que cada hora deja un JSON por disco en `/var/lib/cerbero/smart/`. Detalles en la
+[cabeza 4](#cabeza-4--discos-smart).
 
 ## Conectarlo con Dis
 
@@ -175,6 +192,46 @@ es de confianza.
   `/var/log/auth.log` no existe. Cerbero lo avisa con la alerta *Log ilegible*; se arregla con
   `sudo apt install rsyslog`.
 
+### Cabeza 4 — Discos (SMART)
+
+SMART lo lee en el host `cerbero-smart.timer` (`host/smart/`), cada hora, y deja un JSON por
+disco en `/var/lib/cerbero/smart/`. Cerbero lo lee cada 2 minutos a través de `/hostfs`.
+
+| Alerta | Nivel | Cuándo salta | Cuándo se resuelve |
+|--------|-------|--------------|--------------------|
+| SMART fallido | 🔴 | El disco dice `FAILED` o, en NVMe, da un aviso crítico (reserva agotada, solo lectura...) | Vuelve a pasar |
+| Sectores dañados | 🔴 | Sectores pendientes (197) o incorregibles (198), errores de medio en NVMe, o reasignados (5) que suben (se mantiene 24 h desde la última subida) | Vuelven a 0 |
+| Sectores reasignados | 🟡 | Reasignados > 0 pero estables | Vuelven a 0 |
+| Temperatura | 🟡 | Por encima de `SMART_TEMP_HDD_MAX` (discos) o `SMART_TEMP_NVME_MAX` (NVMe) | Baja 3 °C por debajo, o el disco entra en reposo |
+| Desgaste | 🟡 | El NVMe ha gastado el 90 % de su vida útil | — |
+| SMART ilegible | 🟡 | `smartctl` no puede leer el disco (p. ej. un puente USB sin soporte) | Vuelve a leerse |
+| Disco desconectado | 🟡 | Un disco de `discos.conf` no está (salvo los marcados `opcional`) | Vuelve a estar |
+| Datos sin actualizar | 🟡 | Algún disco lleva más de `SMART_MAX_AGE_H` horas sin comprobarse: el timer se ha parado | Vuelven a llegar datos |
+
+- **Discos por `/dev/disk/by-id/`.** Con discos USB, `sda`/`sdb`/`sdc` cambian de letra al
+  reiniciar o reconectar; el identificador por modelo y número de serie no.
+- **No despierta discos dormidos.** El volcado usa `smartctl -n standby`: si un disco USB está
+  en reposo no lo lee y conserva los datos de la última lectura completa. Si esta tiene más de
+  24 h, lo lee aunque lo despierte.
+- **Puentes USB.** Si el modo automático no entiende el puente, prueba `-d sat` y lo recuerda.
+- **Discos cifrados.** SMART se lee del disco físico aunque el volumen LUKS esté cerrado; un
+  disco `opcional` solo deja de vigilarse si está desconectado.
+- **Reasignados estables, 🟡.** Un disco con unos pocos sectores reasignados desde hace años no
+  merece un 🔴 cada media hora; que suban, sí.
+
+`discos.conf`, un disco por línea (`opcional` y `tipo=sat` son optativos):
+
+```
+# nombre  dispositivo                                                   montaje        opciones
+sistema   /dev/disk/by-id/nvme-Micron_2400_MTFDKBA512QFM_0000AAAA1111     /
+extra     /dev/disk/by-id/usb-Seagate_Expansion_HDD_00000000AAAA1111-0:0  /srv/extra
+archivos  /dev/disk/by-id/ata-WDC_WD50NDZW-11C8XS1_WD-WX00AAAA1111        /srv/archivos
+secure    /dev/disk/by-id/ata-WDC_WD50NDZW-11C8XS1_WD-WX00BBBB2222        /srv/secure    opcional
+```
+
+Para ver qué haría con tus discos sin instalar nada: `sudo python3
+host/smart/cerbero_smart.py --detectar`.
+
 ## Alertas
 
 Cada cabeza dispara alertas con uno de tres niveles: `info` 🟢, `warning` 🟡 y `critical` 🔴.
@@ -237,6 +294,10 @@ en la API). Una variable vacía equivale a no definirla. `.env.example` las docu
 | `BRUTE_FORCE_THRESHOLD` | `10` | Fallos (más de) desde una IP que cuentan como fuerza bruta |
 | `BRUTE_FORCE_WINDOW_MIN` | `5` | Ventana en minutos para contar fallos |
 | `TRUSTED_NETWORKS` | `192.168.1.0/24,10.0.0.0/24,100.64.0.0/10` | Rangos de confianza, separados por comas (sustituyen a los de `app/config.py`) |
+| `SMART_DIR` | `/var/lib/cerbero/smart` | Dónde deja los JSON `cerbero-smart.timer` (ruta del host) |
+| `SMART_MAX_AGE_H` | `3` | Horas sin comprobar un disco a partir de las cuales se avisa |
+| `SMART_TEMP_HDD_MAX` | `50` | °C a partir de los cuales un disco duro está caliente |
+| `SMART_TEMP_NVME_MAX` | `70` | °C a partir de los cuales el NVMe está caliente |
 | `LOG_LEVEL` | `INFO` | Nivel del registro |
 
 ### Qué monta el compose
@@ -244,7 +305,7 @@ en la API). Una variable vacía equivale a no definirla. `.env.example` las docu
 | Montaje | Para qué |
 |---------|----------|
 | `/var/run/docker.sock` (`:ro`) | Cabeza de contenedores: listar, inspeccionar y leer eventos |
-| `/` → `/hostfs` (`:ro`) | Discos (`/srv/archivos` y `/srv/extra` entran por ser submontajes) y `/var/log/auth.log` |
+| `/` → `/hostfs` (`:ro`) | Discos (`/srv/archivos` y `/srv/extra` entran por ser submontajes), `/var/log/auth.log` y los JSON de `/var/lib/cerbero/` |
 
 Se monta la raíz y no `auth.log` suelto a propósito: el bind mount de un fichero se queda
 apuntando al viejo cuando logrotate lo rota, y Cerbero dejaría de ver accesos sin avisar.
@@ -264,6 +325,9 @@ No hacen falta `pid: host`, `network_mode: host` ni `SYS_PTRACE`: CPU y RAM del 
   interfaces: no lo redirijas en el router. Para limitarlo a la LAN y Tailscale, en
   `docker-compose.yml` cambia la línea de `ports` por
   `"192.168.1.60:9666:9666"` y `"100.87.200.60:9666:9666"`.
+- **Lo que necesita root se queda en el host.** `cerbero-smart.service` es el único que corre
+  como root (`smartctl` habla directamente con los discos), con la unidad cerrada: sin red,
+  sistema de ficheros de solo lectura salvo `/var/lib/cerbero/smart` y sin acceso a `/home`.
 - **El token de Telegram** va en `.env` (ignorado por git) y nunca aparece en los registros:
   httpx está silenciado porque escribiría la URL, que lo contiene.
 - **Las entradas de `auth.log` no son de fiar.** El nombre de usuario lo controla quien se
@@ -285,6 +349,15 @@ mensaje (400)», el `chat_id` es incorrecto o no le has escrito antes al bot.
 **Un contenedor que termina solo (un cron, un backup) avisa al acabar.** Añádelo a
 `CONTAINERS_IGNORE`.
 
+**`smart: false` y alerta «Sin datos SMART».** Falta instalar el volcado del host
+(`sudo host/smart/instalar.sh`). Si la alerta es «Datos SMART sin actualizar», el timer se ha
+parado: `systemctl status cerbero-smart.timer` y `journalctl -u cerbero-smart.service -n 20`.
+
+**«No se puede leer SMART de …: Unknown USB bridge».** Añade `tipo=sat` a ese disco en
+`/etc/cerbero/discos.conf` (el volcado ya lo intenta solo) y lanza
+`sudo systemctl start cerbero-smart.service`. Algunas cajas USB no dejan pasar SMART en ningún
+modo; entonces el disco no se puede vigilar.
+
 **`contenedores: false` y alerta «No se puede consultar Docker».** Comprueba que el socket está
 montado y que Docker funciona (`docker ps` en el host).
 
@@ -295,9 +368,9 @@ Documentación interactiva en `/api/docs`.
 
 | Método | Ruta | Respuesta |
 |--------|------|-----------|
-| GET | `/api/health` | `{status, heads: {recursos, contenedores, accesos}}` |
+| GET | `/api/health` | `{status, heads: {recursos, contenedores, accesos, smart}}` |
 | GET | `/api/alerts` | `{connected: true, alerts: [...]}`; `?active=true` deja solo las activas |
-| GET | `/api/status` | `{cpu_pct, ram_free_gb, ram_total_gb, disks: [...], containers: [...]}` |
+| GET | `/api/status` | `{cpu_pct, ram_free_gb, ram_total_gb, disks: [...], containers: [...], smart: [...]}` |
 
 `/api/health` responde `status: "ok"` si las tres cabezas funcionan y `"degraded"` si alguna no
 (p. ej., la de accesos si no puede leer `auth.log`); cada cabeza, `true` o `false`.
@@ -323,8 +396,8 @@ reciente a la más antigua:
 }
 ```
 
-`/api/status` es la última lectura de las cabezas 1 y 2 (valores `null` durante los primeros
-segundos tras arrancar):
+`/api/status` es la última lectura de las cabezas 1, 2 y 4 (valores `null` durante los
+primeros segundos tras arrancar):
 
 ```json
 {
@@ -334,7 +407,12 @@ segundos tras arrancar):
   "disks": [
     {"mount": "/", "total_gb": 234.0, "used_gb": 120.5, "free_gb": 101.6, "percent": 54.3, "error": null}
   ],
-  "containers": [{"name": "jellyfin", "status": "running", "health": "healthy", "restarts": 0}]
+  "containers": [{"name": "jellyfin", "status": "running", "health": "healthy", "restarts": 0}],
+  "smart": [
+    {"nombre": "archivos", "estado": "ok", "montaje": "/srv/archivos", "modelo": "WDC WD50NDZW-11C8XS1",
+     "salud": true, "temp_c": 38, "horas": 9012, "reasignados": 0, "pendientes": 0, "incorregibles": 0,
+     "comprobado": "2026-10-14T10:00:03+02:00", "leido": "2026-10-14T10:00:03+02:00", "...": "..."}
+  ]
 }
 ```
 
@@ -354,7 +432,7 @@ AUTH_LOG=/var/log/auth.log DISKS=/ uvicorn --factory app.main:create_app --port 
 
 ```
 app/
-├── main.py              arranque: API + las tres cabezas (asyncio y un hilo)
+├── main.py              arranque: API + las cabezas (asyncio y un hilo)
 ├── config.py            umbrales, Telegram y rangos de red de confianza
 ├── store.py             AlertStore: activas + últimas 50 resueltas, en memoria
 ├── alerter.py           Telegram, cooldown, recordatorios y resolución
@@ -362,8 +440,11 @@ app/
 └── heads/
     ├── recursos.py      cabeza 1: psutil
     ├── contenedores.py  cabeza 2: Docker SDK
-    └── accesos.py       cabeza 3: tail de auth.log
-tests/                   pytest (sin Docker ni red: todo con dobles)
+    ├── accesos.py       cabeza 3: tail de auth.log
+    └── smart.py         cabeza 4: JSON de SMART que deja el host
+host/
+└── smart/               volcado SMART en el host (root): script, unidades e instalador
+tests/                   pytest (sin Docker, red ni discos: todo con dobles)
 assets/                  logo
 ```
 

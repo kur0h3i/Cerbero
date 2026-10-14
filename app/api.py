@@ -2,7 +2,7 @@
 
 - ``GET /api/health``  estado de cada cabeza
 - ``GET /api/alerts``  alertas activas y últimas resueltas: ``{connected, alerts}``
-- ``GET /api/status``  última lectura de recursos y contenedores
+- ``GET /api/status``  última lectura de recursos, contenedores y SMART
 
 Sin autenticación: Cerbero solo es accesible dentro de la LAN y la tailnet.
 Solo lectura: no hay ninguna ruta que modifique nada.
@@ -11,6 +11,7 @@ Solo lectura: no hay ninguna ruta que modifique nada.
 from __future__ import annotations
 
 from dataclasses import asdict
+from datetime import datetime
 from typing import TYPE_CHECKING, Literal
 
 from fastapi import APIRouter, Request
@@ -51,6 +52,29 @@ class ContainerOut(BaseModel):
     restarts: int
 
 
+class SmartDiskOut(BaseModel):
+    nombre: str
+    estado: str  # ok | standby | ausente | error
+    dispositivo: str
+    montaje: str | None
+    opcional: bool
+    comprobado: datetime | None
+    leido: datetime | None  # última lectura completa (en reposo se conserva)
+    error: str | None
+    modelo: str | None
+    protocolo: str | None
+    salud: bool | None
+    temp_c: float | None
+    horas: int | None
+    reasignados: int | None
+    pendientes: int | None
+    incorregibles: int | None
+    aviso_critico: int | None
+    errores_medio: int | None
+    reserva_pct: int | None
+    desgaste_pct: int | None
+
+
 class StatusOut(BaseModel):
     # ``None`` hasta la primera lectura (unos segundos tras arrancar).
     cpu_pct: float | None = None
@@ -58,6 +82,7 @@ class StatusOut(BaseModel):
     ram_total_gb: float | None = None
     disks: list[DiskOut] = []
     containers: list[ContainerOut] = []
+    smart: list[SmartDiskOut] = []
 
 
 def _cerbero(request: Request) -> Cerbero:
@@ -93,4 +118,6 @@ def status(request: Request) -> StatusOut:
             ContainerOut(name=c.name, status=c.state, health=c.health, restarts=c.restart_count)
             for c in containers
         ]
+    if (disks := cerbero.smart.snapshot) is not None:
+        out.smart = [SmartDiskOut(**asdict(d)) for d in disks]
     return out

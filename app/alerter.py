@@ -40,6 +40,7 @@ HEAD_LABEL: dict[Head, str] = {
     "recursos": "Recursos",
     "contenedores": "Contenedores",
     "accesos": "Accesos",
+    "smart": "Discos (SMART)",
 }
 
 TIME_FMT = "%Y-%m-%d %H:%M:%S"

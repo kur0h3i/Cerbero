@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import time
 from pathlib import Path
 
@@ -11,6 +12,7 @@ from app.config import Settings
 from app.heads.accesos import AccesosHead, LogTailer
 from app.heads.contenedores import ContainerInfo, ContenedoresHead
 from app.heads.recursos import DiskSample, RecursosHead, Sample
+from app.heads.smart import SmartHead
 from app.main import create_app
 from tests.conftest import FakeNotifier
 
@@ -48,12 +50,20 @@ class FakeSource:
 def client(tmp_path: Path, settings: Settings, notifier: FakeNotifier):
     log = tmp_path / "auth.log"
     log.write_text("")
+    smart_dir = tmp_path / "smart"
+    smart_dir.mkdir()
+    disk = json.loads((Path(__file__).parent / "fixtures/smartctl_nvme.json").read_text())
+    now = settings.now().isoformat()
+    head = {"nombre": "sistema", "montaje": "/", "estado": "ok", "comprobado": now, "leido": now}
+    (smart_dir / "sistema.json").write_text(json.dumps({"cerbero": head, "smartctl": disk}))
+    settings = settings.model_copy(update={"smart_dir": str(smart_dir)})
 
     def heads(s: Settings, alerter: Alerter):
         return (
             RecursosHead(s, alerter, sampler=FakeSampler()),  # type: ignore[arg-type]
             ContenedoresHead(s, alerter, source=FakeSource()),
             AccesosHead(s, alerter, tailer=LogTailer(str(log))),
+            SmartHead(s, alerter),
         )
 
     app = create_app(settings, notifier=notifier, heads=heads)
@@ -75,7 +85,7 @@ def _until(condition, timeout: float = 3.0) -> None:
 def test_health(client: TestClient) -> None:
     assert client.get("/api/health").json() == {
         "status": "ok",
-        "heads": {"recursos": True, "contenedores": True, "accesos": True},
+        "heads": {"recursos": True, "contenedores": True, "accesos": True, "smart": True},
     }
 
 
@@ -122,7 +132,13 @@ def test_alerts_active_filter(client: TestClient) -> None:
 
 
 def test_status(client: TestClient) -> None:
-    assert client.get("/api/status").json() == {
+    body = client.get("/api/status").json()
+    (disk,) = body.pop("smart")
+    assert disk["nombre"] == "sistema"
+    assert disk["montaje"] == "/"
+    assert disk["modelo"] == "Micron_2400_MTFDKBA512QFM"
+    assert (disk["salud"], disk["temp_c"], disk["desgaste_pct"]) == (True, 41, 3)
+    assert body == {
         "cpu_pct": 12.5,
         "ram_free_gb": 0.9,
         "ram_total_gb": 11.6,
@@ -159,6 +175,7 @@ def test_health_degraded_when_a_head_is_blind(
             RecursosHead(s, alerter, sampler=FakeSampler()),  # type: ignore[arg-type]
             ContenedoresHead(s, alerter, source=FakeSource()),
             AccesosHead(s, alerter, tailer=LogTailer(str(tmp_path / "no-existe.log"))),
+            SmartHead(s, alerter),
         )
 
     with TestClient(create_app(settings, notifier=notifier, heads=heads)) as c:

@@ -1,0 +1,8 @@
+{
+  "json_format_version": [1, 0],
+  "smartctl": {
+    "version": [7, 4],
+    "exit_status": 1,
+    "messages": [{"string": "/dev/sda: Unknown USB bridge [0x0bc2:0x2343 (0x100)]", "severity": "error"}]
+  }
+}

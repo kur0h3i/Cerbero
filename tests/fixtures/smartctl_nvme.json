@@ -1,0 +1,23 @@
+{
+  "json_format_version": [1, 0],
+  "smartctl": {"version": [7, 4], "exit_status": 0},
+  "device": {"name": "/dev/nvme0n1", "info_name": "/dev/nvme0n1", "type": "nvme", "protocol": "NVMe"},
+  "model_name": "Micron_2400_MTFDKBA512QFM",
+  "serial_number": "00000000000",
+  "smart_status": {"passed": true, "nvme": {"value": 0}},
+  "nvme_smart_health_information_log": {
+    "critical_warning": 0,
+    "temperature": 41,
+    "available_spare": 100,
+    "available_spare_threshold": 5,
+    "percentage_used": 3,
+    "data_units_read": 12345678,
+    "data_units_written": 23456789,
+    "power_on_hours": 5100,
+    "unsafe_shutdowns": 12,
+    "media_errors": 0,
+    "num_err_log_entries": 0
+  },
+  "power_on_time": {"hours": 5100},
+  "temperature": {"current": 41}
+}

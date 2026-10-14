@@ -22,9 +22,9 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 Level = Literal["info", "warning", "critical"]
-Head = Literal["recursos", "contenedores", "accesos"]
+Head = Literal["recursos", "contenedores", "accesos", "smart"]
 
-HEADS: tuple[Head, ...] = ("recursos", "contenedores", "accesos")
+HEADS: tuple[Head, ...] = ("recursos", "contenedores", "accesos", "smart")
 SEVERITY: dict[Level, int] = {"info": 0, "warning": 1, "critical": 2}
 HISTORY_SIZE = 50
 
