@@ -245,8 +245,11 @@ function renderGlobal(health, active) {
     : health.status === 'ok'
       ? 'En guardia'
       : 'Vigilancia incompleta';
-  el.className = `pill badge ${l.cls}`;
-  el.textContent = `${l.icon} ${text}`;
+  // Solo si cambia: reasignar el mismo texto también lo anuncia el lector de pantalla.
+  const cls = `pill badge ${l.cls}`;
+  const txt = `${l.icon} ${text}`;
+  if (el.className !== cls) el.className = cls;
+  if (el.textContent !== txt) el.textContent = txt;
 }
 
 function renderUpdated() {
