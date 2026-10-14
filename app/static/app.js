@@ -51,11 +51,14 @@ function badge(level, text) {
 
 function replace(id, ...children) {
   const box = document.getElementById(id);
+  const next = children.flat().filter(Boolean);
+  // Sin cambios no se repinta: un lector de pantalla no re-anuncia el foco cada 10 s.
+  if (next.length === box.childNodes.length && next.every((n, i) => n.isEqualNode(box.childNodes[i]))) return;
   // El repintado borra el elemento con foco: se busca su equivalente para no perderlo.
   const had = box.contains(document.activeElement) ? document.activeElement : null;
   const key = (el) => el.getAttribute('href') ?? el.tagName;
   const wanted = had && key(had);
-  box.replaceChildren(...children.flat().filter(Boolean));
+  box.replaceChildren(...next);
   if (wanted) {
     [...box.querySelectorAll('a[href], summary')]
       .find((el) => key(el) === wanted)
