@@ -308,7 +308,7 @@ function renderHeads(health, active, status) {
       text = `${mine.length} alerta${mine.length > 1 ? 's' : ''}`;
     } else if (healthy === false) {
       level = 'unknown';
-      text = 'Ciega';
+      text = 'Sin lectura';
     }
     return h(
       'a',
@@ -382,7 +382,7 @@ function renderRecursos(status) {
       100,
       u.cpu_pct,
       severityOf(status.cpu_pct, u.cpu_pct),
-      `${num(status.cpu_pct)} % · umbral ${num(u.cpu_pct)} % (${u.cpu_lecturas} lecturas)`,
+      `${num(status.cpu_pct)} % · alerta si pasa de ${num(u.cpu_pct)} % durante ${u.cpu_lecturas} lecturas`,
     ),
     meter(
       'RAM',
@@ -421,7 +421,7 @@ function renderRecursos(status) {
 function diskState(d) {
   if (d.estado === 'ausente') return d.opcional ? ['unknown', 'Desconectado'] : ['warning', 'Desconectado'];
   if (d.estado === 'error') return ['warning', 'Ilegible'];
-  if (d.salud === false || d.aviso_critico) return ['critical', 'FAILED'];
+  if (d.salud === false || d.aviso_critico) return ['critical', 'Fallo SMART'];
   if (d.pendientes || d.incorregibles || d.errores_medio) return ['critical', 'Sectores'];
   if (d.reasignados) return ['warning', 'Reasignados'];
   return ['ok', d.estado === 'standby' ? 'En reposo' : 'Sano'];
@@ -576,7 +576,7 @@ function renderContenedores(status) {
     { class: 'stats' },
     stat('En marcha', `${running} / ${all.length}`),
     stat('No en marcha', num(all.length - running)),
-    stat('Unhealthy', num(unhealthy)),
+    stat('Con fallo de salud',num(unhealthy)),
     stat('Con reinicios', num(restarted)),
   );
   const rank = { critical: 0, warning: 1, ok: 2 };
@@ -597,13 +597,13 @@ function renderContenedores(status) {
       h('td', { class: 'num' }, num(c.restarts)),
     );
   };
-  const headers = [['Contenedor'], ['Estado'], ['Health'], ['Reinicios', 'num']];
+  const headers = [['Contenedor'], ['Estado'], ['Salud'], ['Reinicios', 'num']];
   const problems = sorted.filter((c) => containerLevel(c) !== 'ok' || c.restarts > 0);
   const parts = [stats];
   if (problems.length) {
     parts.push(h('h3', { class: 'small muted' }, 'Con problemas o reinicios'), table(headers, problems.map(row)));
   } else {
-    parts.push(h('p', { class: 'small' }, badge('ok', 'Todo en orden'), ' Ningún contenedor caído, unhealthy ni con reinicios.'));
+    parts.push(h('p', { class: 'small' }, badge('ok', 'Todo en orden'), ' Ningún contenedor caído, con fallo de salud ni con reinicios.'));
   }
   parts.push(
     h('details', { open }, h('summary', {}, `Ver los ${all.length} contenedores`), table(headers, sorted.map(row))),
