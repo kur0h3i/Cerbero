@@ -292,6 +292,21 @@ def test_eviction_keeps_the_active_attacker(
     assert "accesos:fuerza_bruta:203.0.113.5" in keys(actions)
 
 
+def test_evicted_ip_resolves_its_alert(settings: Settings, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("app.heads.accesos.MAX_TRACKED_IPS", 3)
+    an = AccessAnalyzer(settings)
+    actions = []
+    for i in range(11):
+        actions += an.feed(failed("203.0.113.5", valid=False, port=i), now=i)
+    assert "accesos:fuerza_bruta:203.0.113.5" in keys(fires(actions))
+    actions = []
+    for i, ip in enumerate(("198.51.100.1", "198.51.100.2", "198.51.100.3")):
+        actions += an.feed(failed(ip, valid=False), now=20 + i)
+    resolves = [a for a in actions if isinstance(a, Resolve)]
+    assert [r.key for r in resolves] == ["accesos:fuerza_bruta:203.0.113.5"]
+    assert "accesos:fuerza_bruta:203.0.113.5" not in an._raised
+
+
 def test_count_saturates_but_keeps_alerting(settings: Settings) -> None:
     an = AccessAnalyzer(settings)
     for i in range(500):

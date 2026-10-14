@@ -212,7 +212,12 @@ class AccessAnalyzer:
         entry = self._failures.pop(event.ip, None)
         if entry is None:
             if len(self._failures) >= MAX_TRACKED_IPS:
-                self._failures.pop(next(iter(self._failures)))
+                old = next(iter(self._failures))
+                del self._failures[old]
+                actions += self._resolve(
+                    f"{HEAD}:fuerza_bruta:{old}",
+                    f"Deja de seguirse la fuerza bruta SSH desde {old} (demasiadas IPs a la vez)",
+                )
             maxlen = max(MAX_TIMES_PER_IP, self._settings.brute_force_threshold + 1)
             entry = _IpFailures(deque(maxlen=maxlen))
         self._failures[event.ip] = entry
