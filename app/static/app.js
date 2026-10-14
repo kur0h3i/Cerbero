@@ -488,17 +488,20 @@ function renderAccesos(status) {
   const logins = a.ultimos_accesos.length
     ? table(
         [['Cuándo', 'nowrap'], ['Usuario'], ['IP'], ['Método', 'hide-narrow'], ['Origen']],
-        a.ultimos_accesos.map((l) =>
-          h(
+        a.ultimos_accesos.map((l) => {
+          // Función y no variable: un nodo no puede estar en dos sitios a la vez.
+          const method = () =>
+            l.metodo === 'password' && !l.confianza ? badge('critical', 'password') : l.metodo;
+          return h(
             'tr',
             {},
             h('td', {}, timeEl(l.fecha)),
-            h('td', {}, l.usuario),
+            h('td', {}, l.usuario, h('span', { class: 'cell-sub only-narrow' }, method())),
             h('td', {}, l.ip),
-            h('td', {}, l.metodo),
+            h('td', {}, method()),
             h('td', {}, l.confianza ? badge('ok', 'Confianza') : badge('critical', 'Externa')),
-          ),
-        ),
+          );
+        }),
       )
     : empty('Ningún login aceptado desde que arrancó Cerbero.');
   replace('accesos', stats, logState, h('h3', { class: 'small muted' }, 'Últimos accesos aceptados'), logins);
