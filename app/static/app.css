@@ -122,8 +122,21 @@ a {
   justify-content: space-between;
   gap: 12px;
   padding: 14px 16px;
+  border-top: 4px solid var(--accent);
   border-bottom: 1px solid var(--border);
   background: var(--surface);
+}
+body[data-state='ok'] .top {
+  border-top-color: var(--ok);
+}
+body[data-state='warning'] .top {
+  border-top-color: var(--warning);
+}
+body[data-state='critical'] .top {
+  border-top-color: var(--critical);
+}
+body[data-state='critical'] .pill {
+  font-size: 14px;
 }
 
 .brand {

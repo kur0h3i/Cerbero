@@ -245,6 +245,7 @@ function renderGlobal(health, active) {
     : health.status === 'ok'
       ? 'En guardia'
       : 'Vigilancia incompleta';
+  document.body.dataset.state = l.cls;
   // Solo si cambia: reasignar el mismo texto también lo anuncia el lector de pantalla.
   const cls = `pill badge ${l.cls}`;
   const txt = `${l.icon} ${text}`;
