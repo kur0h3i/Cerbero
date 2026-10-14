@@ -17,8 +17,8 @@ WORKDIR /app
 COPY pyproject.toml ./
 COPY app ./app
 RUN pip install . && rm -rf /root/.cache
-# El logo, para /favicon.svg (Dis lo muestra en la tarjeta del contenedor).
-COPY assets/cerbero.svg ./assets/cerbero.svg
+# Los logos: /favicon.svg (Dis lo muestra en la tarjeta del contenedor) y /logo.svg.
+COPY assets/cerbero.svg assets/cerbero-logo.svg ./assets/
 
 EXPOSE 9666
 # Comprobación con un socket a pelo y sin ``site`` (-S): ~10 MB frente a los ~18

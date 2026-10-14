@@ -144,6 +144,24 @@ def test_alerts_include_security_events(client: TestClient) -> None:
     )
 
 
+def test_status_lists_recent_logins(client: TestClient) -> None:
+    with client.log.open("a") as fh:  # type: ignore[attr-defined]
+        fh.write(NEW + "Accepted publickey for kuro from 192.168.1.20 port 9 ssh2\n")
+        fh.write(NEW + "Accepted password for kuro from 198.51.100.4 port 9 ssh2\n")
+        fh.write(NEW + "Failed password for root from 203.0.113.5 port 1 ssh2\n")
+
+    def accesos() -> dict:
+        return client.get("/api/status").json()["accesos"]
+
+    _until(lambda: accesos()["lineas"] == 3)
+    data = accesos()
+    assert [(a["ip"], a["confianza"]) for a in data["ultimos_accesos"]] == [
+        ("198.51.100.4", False),  # el más reciente primero
+        ("192.168.1.20", True),
+    ]
+    assert (data["ips_seguidas"], data["fallos_ventana"]) == (1, 1)
+
+
 def test_alerts_active_filter(client: TestClient) -> None:
     alerts = client.get("/api/alerts", params={"active": "false"}).json()["alerts"]
     assert alerts == []
@@ -153,6 +171,16 @@ def test_alerts_active_filter(client: TestClient) -> None:
 
 def test_status(client: TestClient) -> None:
     body = client.get("/api/status").json()
+    assert body.pop("servidor") == "server-kuro"
+    umbrales = body.pop("umbrales")
+    assert (umbrales["cpu_pct"], umbrales["ram_libre_min_gb"], umbrales["fuerza_bruta"]) == (
+        85,
+        1.5,
+        10,
+    )
+    assert umbrales["redes_confianza"] == ["192.168.1.0/24", "10.0.0.0/24", "100.64.0.0/10"]
+    accesos = body.pop("accesos")
+    assert (accesos["legible"], accesos["ultimos_accesos"]) == (True, [])
     (task,) = body.pop("tareas")
     assert (task["tarea"], task["resultado"], task["parada"]) == ("cola-tareas", "ok", False)
     (disk,) = body.pop("smart")
@@ -221,7 +249,25 @@ def test_favicon_for_dis(client: TestClient) -> None:
     assert resp.text.lstrip().startswith("<svg")
 
 
-def test_root_redirects_to_docs(client: TestClient) -> None:
-    resp = client.get("/", follow_redirects=False)
-    assert resp.status_code == 307
-    assert resp.headers["location"] == "/api/docs"
+def test_web_is_served_with_strict_headers(client: TestClient) -> None:
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/html")
+    assert "<title>Cerbero</title>" in resp.text
+    csp = resp.headers["content-security-policy"]
+    assert "script-src 'self'" in csp and "frame-ancestors 'none'" in csp
+    for path in ("/static/app.js", "/static/app.css", "/static/theme.js", "/logo.svg"):
+        asset = client.get(path)
+        assert asset.status_code == 200, path
+        assert asset.headers["x-content-type-options"] == "nosniff"
+    # Swagger carga JS de un CDN: la CSP de la web no debe romperlo.
+    assert "content-security-policy" not in client.get("/api/docs").headers
+
+
+def test_web_has_no_inline_scripts(client: TestClient) -> None:
+    import re
+
+    html = client.get("/").text
+    scripts = re.findall(r"<script\b[^>]*>(.*?)</script>", html, re.S)
+    assert scripts and all(not body.strip() for body in scripts)
+    assert "style=" not in html

@@ -33,7 +33,7 @@ import time
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import datetime, timedelta
 from ipaddress import IPv6Address, ip_address
 from typing import Literal
 
@@ -304,6 +304,13 @@ class AccessAnalyzer:
     def tracked_ips(self) -> int:
         return len(self._failures)
 
+    def failures_in_window(self, now: float) -> int:
+        """Fallos de login en la ventana, sumando todas las IPs seguidas."""
+        return sum(
+            sum(1 for t in entry.times if now - t <= self._window)
+            for entry in self._failures.values()
+        )
+
 
 # --- Tail del fichero ------------------------------------------------------------
 
@@ -387,6 +394,29 @@ class LogTailer:
 
 # --- Cabeza ----------------------------------------------------------------------
 
+RECENT_LOGINS = 10
+
+
+@dataclass(frozen=True)
+class Login:
+    fecha: datetime
+    usuario: str
+    ip: str
+    metodo: str
+    confianza: bool
+
+
+@dataclass(frozen=True)
+class AccessSnapshot:
+    """Resumen para la API. Lo construye el hilo y se sustituye entero (sin locks)."""
+
+    log: str
+    legible: bool
+    lineas: int
+    ips_seguidas: int
+    fallos_ventana: int
+    ultimos_accesos: tuple[Login, ...]
+
 
 class AccesosHead:
     name = HEAD
@@ -409,6 +439,8 @@ class AccesosHead:
         self._clock = clock
         self._thread: threading.Thread | None = None
         self.lines_seen = 0
+        self._logins: deque[Login] = deque(maxlen=RECENT_LOGINS)
+        self.snapshot: AccessSnapshot | None = None
 
     def healthy(self) -> bool:
         return self._thread is not None and self._thread.is_alive() and self._tailer.is_open
@@ -438,16 +470,43 @@ class AccesosHead:
                 for line in lines:
                     self.lines_seen += 1
                     if event := parse_line(line):
+                        if event.kind == "accepted":
+                            self._remember_login(event)
                         self._dispatch(loop, self._analyzer.feed(event, now))
-                if now - last_tick >= self.TICK_S:
+                ticked = now - last_tick >= self.TICK_S
+                if ticked:
                     last_tick = now
                     self._dispatch(loop, self._analyzer.tick(now))
+                previous_problem = log_problem
                 log_problem = self._check_log(loop, log_problem)
+                if lines or ticked or log_problem != previous_problem or self.snapshot is None:
+                    self._update_snapshot(now)
             except Exception:
                 log.exception("Error procesando %s", self._tailer.path)
                 lines = []
             if not lines:
                 stop.wait(self.POLL_S)
+
+    def _remember_login(self, event: SshEvent) -> None:
+        self._logins.appendleft(
+            Login(
+                fecha=self._settings.now(),
+                usuario=event.user,
+                ip=str(event.ip),
+                metodo=event.method,
+                confianza=self._settings.is_trusted(event.ip),
+            )
+        )
+
+    def _update_snapshot(self, now: float) -> None:
+        self.snapshot = AccessSnapshot(
+            log=self._settings.auth_log,
+            legible=self._tailer.is_open,
+            lineas=self.lines_seen,
+            ips_seguidas=self._analyzer.tracked_ips,
+            fallos_ventana=self._analyzer.failures_in_window(now),
+            ultimos_accesos=tuple(self._logins),
+        )
 
     def _check_log(self, loop: asyncio.AbstractEventLoop, previous: str | None) -> str | None:
         """Avisa (una vez) si el log no se puede leer, y cuando vuelve a leerse."""

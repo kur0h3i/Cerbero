@@ -15,8 +15,9 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
-from fastapi import FastAPI
-from fastapi.responses import FileResponse, RedirectResponse, Response
+from fastapi import FastAPI, Request
+from fastapi.responses import FileResponse, Response
+from fastapi.staticfiles import StaticFiles
 
 from . import __doc__ as description
 from .alerter import Alerter, Notifier, TelegramNotifier
@@ -34,9 +35,28 @@ log = logging.getLogger("cerbero")
 # Cada cuánto se cierran los eventos caducados (logins externos).
 HOUSEKEEPING_S = 30
 
-# Logo con fondo (icono). Dis lo usa en la tarjeta del contenedor: cuando un
-# servicio no está en su catálogo de logos, prueba el ``/favicon.svg`` de su web.
-FAVICON = Path(__file__).resolve().parent.parent / "assets" / "cerbero.svg"
+# Logos: con fondo (icono; Dis lo usa en la tarjeta del contenedor, porque cuando
+# un servicio no está en su catálogo prueba el ``/favicon.svg`` de su web) y sin
+# fondo (cabecera de la web).
+ASSETS = Path(__file__).resolve().parent.parent / "assets"
+FAVICON = ASSETS / "cerbero.svg"
+LOGO = ASSETS / "cerbero-logo.svg"
+# La web propia: HTML, CSS y JS sin compilar.
+STATIC = Path(__file__).resolve().parent / "static"
+
+# Solo para la web, no para /api/docs (Swagger carga su JS desde un CDN). Todo
+# viene de Cerbero y nada se ejecuta en línea.
+WEB_HEADERS = {
+    "Content-Security-Policy": (
+        "default-src 'self'; img-src 'self'; style-src 'self'; script-src 'self'; "
+        "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+    ),
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    # Que una actualización de Cerbero se vea al recargar (revalida con ETag).
+    "Cache-Control": "no-cache",
+}
+WEB_PATHS = ("/", "/favicon.svg", "/logo.svg")
 
 
 @dataclass
@@ -133,18 +153,32 @@ def create_app(
         openapi_url="/api/openapi.json",
     )
     app.include_router(router)
+    app.mount("/static", StaticFiles(directory=STATIC), name="static")
+
+    @app.middleware("http")
+    async def web_headers(request: Request, call_next):  # type: ignore[no-untyped-def]
+        response = await call_next(request)
+        path = request.url.path
+        if path in WEB_PATHS or path.startswith("/static/"):
+            response.headers.update(WEB_HEADERS)
+        return response
 
     @app.get("/", include_in_schema=False)
-    def root() -> RedirectResponse:
-        # Cerbero no tiene web propia: el botón «Abrir» de Dis lleva a la API.
-        return RedirectResponse("/api/docs")
+    def index() -> FileResponse:
+        # La web de detalle de Cerbero; el botón «Abrir» de Dis lleva aquí.
+        return FileResponse(STATIC / "index.html", media_type="text/html")
+
+    def svg(path: Path) -> Response:
+        if not path.is_file():
+            return Response(status_code=404)
+        return FileResponse(path, media_type="image/svg+xml")
 
     @app.get("/favicon.svg", include_in_schema=False)
     def favicon() -> Response:
-        if not FAVICON.is_file():
-            return Response(status_code=404)
-        return FileResponse(
-            FAVICON, media_type="image/svg+xml", headers={"Cache-Control": "max-age=86400"}
-        )
+        return svg(FAVICON)
+
+    @app.get("/logo.svg", include_in_schema=False)
+    def logo() -> Response:
+        return svg(LOGO)
 
     return app

@@ -84,7 +84,44 @@ class TaskOut(BaseModel):
     parada: bool  # el último informe es demasiado viejo
 
 
+class LoginOut(BaseModel):
+    fecha: datetime
+    usuario: str
+    ip: str
+    metodo: str
+    confianza: bool
+
+
+class AccessOut(BaseModel):
+    log: str
+    legible: bool
+    lineas: int  # líneas leídas desde que arrancó Cerbero
+    ips_seguidas: int  # IPs con fallos recientes
+    fallos_ventana: int  # fallos de login en BRUTE_FORCE_WINDOW_MIN
+    ultimos_accesos: list[LoginOut]  # últimos logins aceptados, el más reciente primero
+
+
+class ThresholdsOut(BaseModel):
+    """Los umbrales en uso, para que quien pinte el estado sepa dónde está el límite."""
+
+    cpu_pct: float
+    cpu_lecturas: int
+    ram_libre_min_gb: float
+    disco_pct: float
+    reinicios: int
+    reinicios_ventana_min: float
+    fuerza_bruta: int
+    fuerza_bruta_ventana_min: float
+    smart_temp_hdd_c: float
+    smart_temp_nvme_c: float
+    smart_max_horas: float
+    cooldown_min: float
+    redes_confianza: list[str]
+
+
 class StatusOut(BaseModel):
+    servidor: str
+    umbrales: ThresholdsOut
     # ``None`` hasta la primera lectura (unos segundos tras arrancar).
     cpu_pct: float | None = None
     ram_free_gb: float | None = None
@@ -93,6 +130,7 @@ class StatusOut(BaseModel):
     containers: list[ContainerOut] = []
     smart: list[SmartDiskOut] = []
     tareas: list[TaskOut] = []
+    accesos: AccessOut | None = None
 
 
 def _cerbero(request: Request) -> Cerbero:
@@ -117,7 +155,25 @@ def alerts(request: Request, active: bool | None = None) -> AlertsOut:
 @router.get("/status", response_model=StatusOut)
 def status(request: Request) -> StatusOut:
     cerbero = _cerbero(request)
-    out = StatusOut()
+    s = cerbero.settings
+    out = StatusOut(
+        servidor=s.server_name,
+        umbrales=ThresholdsOut(
+            cpu_pct=s.cpu_threshold,
+            cpu_lecturas=s.cpu_sustained,
+            ram_libre_min_gb=s.ram_free_min_gb,
+            disco_pct=s.disk_threshold,
+            reinicios=s.restart_loop_threshold,
+            reinicios_ventana_min=s.restart_loop_window_min,
+            fuerza_bruta=s.brute_force_threshold,
+            fuerza_bruta_ventana_min=s.brute_force_window_min,
+            smart_temp_hdd_c=s.smart_temp_hdd_max,
+            smart_temp_nvme_c=s.smart_temp_nvme_max,
+            smart_max_horas=s.smart_max_age_h,
+            cooldown_min=s.alert_cooldown_min,
+            redes_confianza=[str(n) for n in s.trusted_networks],
+        ),
+    )
     if (sample := cerbero.recursos.snapshot) is not None:
         out.cpu_pct = sample.cpu_pct
         out.ram_free_gb = sample.ram_free_gb
@@ -143,4 +199,6 @@ def status(request: Request) -> StatusOut:
             )
             for r in reports
         ]
+    if (access := cerbero.accesos.snapshot) is not None:
+        out.accesos = AccessOut(**asdict(access))
     return out

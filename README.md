@@ -8,7 +8,8 @@ Monitor de seguridad y estado de **server-kuro**. Vigila a la vez los recursos d
 contenedores Docker, los accesos SSH, la salud de los discos y las tareas programadas del
 servidor, y avisa por Telegram cuando algo va mal. No sustituye
 a Netdata en métricas detalladas: es la capa propia que solo avisa de lo que importa, sobre
-todo en seguridad. Expone una API REST que consume [Dis](https://github.com/kur0h3i/Dis).
+todo en seguridad. Tiene su propia web de detalle y una API REST que consume
+[Dis](https://github.com/kur0h3i/Dis).
 
 > Cerbero es el perro de tres cabezas que guarda el tercer círculo del Infierno; aquí guarda
 > el servidor ([por qué el nombre](#el-nombre-y-el-logo)).
@@ -25,13 +26,18 @@ todo en seguridad. Expone una API REST que consume [Dis](https://github.com/kur0
   hizo la limpieza semanal de imágenes Docker («🧹 Liberados 566 MB»).
 - **Avisos que no hacen spam**: cooldown por alerta, recordatorio si el problema persiste y
   🟢 [RESUELTO] cuando se normaliza.
+- **Web propia** en `http://IP-DEL-SERVIDOR:9666`: el estado de cada vigilancia, las alertas
+  activas y el histórico, con modo claro y oscuro, también en el móvil.
 - **Ligero y de solo lectura**: un contenedor de ~50 MiB de RAM sin privilegios que nunca
   modifica Docker ni el host.
+
+![Web de Cerbero (datos de ejemplo)](docs/web.png)
 
 ## Índice
 
 - [Puesta en marcha](#puesta-en-marcha)
 - [Conectarlo con Dis](#conectarlo-con-dis)
+- [La web](#la-web)
 - [Qué vigila](#qué-vigila)
 - [Alertas](#alertas)
 - [Configuración](#configuración)
@@ -127,8 +133,28 @@ Si Cerbero está caído, Dis no puede conectar y muestra «Cerbero no conectado�
 nada más.
 
 En la tarjeta del contenedor, Dis muestra el logo de Cerbero: lo encuentra en
-`/favicon.svg`. El botón «Abrir» lleva a `/`, que redirige a la documentación de la API
-(`/api/docs`); Cerbero no tiene web propia.
+`/favicon.svg`. Su botón «Abrir» lleva a la [web de Cerbero](#la-web).
+
+## La web
+
+`http://IP-DEL-SERVIDOR:9666` (el botón «Abrir» de Dis lleva aquí). Es el **detalle de
+Cerbero**; Dis sigue siendo el panel general del servidor, así que no repite lo que ya está allí
+(CPU, RAM y logs de cada contenedor, el mapa de servicios):
+
+- **Vigilancia**: una tarjeta por frente (recursos, contenedores, accesos SSH, discos, tareas)
+  con su estado y un resumen.
+- **Alertas activas**, de la más grave a la menos, y el **histórico** de las últimas 50
+  resueltas con su duración.
+- **Recursos**: CPU, RAM y discos con la marca del umbral en cada barra.
+- **Discos (SMART)**, **accesos SSH** (fallos recientes y últimos logins aceptados, de confianza
+  o externos), **tareas** y **contenedores** (los que tienen problemas primero).
+
+Se actualiza cada 10 s y deja de consultar con la pestaña oculta. Sigue el tema del sistema
+(claro u oscuro) y el botón ◐ lo cambia y lo recuerda. Cada estado lleva forma, texto y color
+(✓ OK, ▲ Aviso, ✕ Crítico), no solo color.
+
+Es HTML, CSS y JS sin dependencias ni compilación (`app/static/`), servido por el mismo
+FastAPI: no añade contenedores y apenas memoria. De solo lectura, como la API.
 
 ## Qué vigila
 
@@ -383,6 +409,9 @@ No hacen falta `pid: host`, `network_mode: host` ni `SYS_PTRACE`: CPU y RAM del 
   `auth.log` (`root:adm 640`) y el socket de Docker (`root:docker 660`), que son de root.
 - **El socket de Docker da control total** de Docker aunque se monte `:ro` (ese `:ro` solo
   afecta al fichero). Cerbero solo hace llamadas de lectura: listar, inspeccionar y eventos.
+- **La web** solo carga recursos de Cerbero, sin nada en línea (CSP `default-src 'self'`), no
+  se puede incrustar en otra página (`frame-ancestors 'none'`) y pinta los datos como texto: un
+  nombre de usuario de SSH con HTML no se ejecuta.
 - **La API no tiene autenticación** y es de solo lectura. Publica el puerto 9666 en todas las
   interfaces: no lo redirijas en el router. Para limitarlo a la LAN y Tailscale, en
   `docker-compose.yml` cambia la línea de `ports` por
@@ -447,7 +476,7 @@ Documentación interactiva en `/api/docs`.
 |--------|------|-----------|
 | GET | `/api/health` | `{status, heads: {recursos, contenedores, accesos, smart, tareas}}` |
 | GET | `/api/alerts` | `{connected: true, alerts: [...]}`; `?active=true` deja solo las activas |
-| GET | `/api/status` | `{cpu_pct, ram_free_gb, ram_total_gb, disks, containers, smart, tareas}` |
+| GET | `/api/status` | `{servidor, umbrales, cpu_pct, ram_free_gb, ram_total_gb, disks, containers, smart, tareas, accesos}` |
 
 `/api/health` responde `status: "ok"` si las tres cabezas funcionan y `"degraded"` si alguna no
 (p. ej., la de accesos si no puede leer `auth.log`); cada cabeza, `true` o `false`.
@@ -473,8 +502,8 @@ reciente a la más antigua:
 }
 ```
 
-`/api/status` es la última lectura de recursos, contenedores, SMART y tareas (valores `null`
-durante los primeros segundos tras arrancar):
+`/api/status` es la última lectura de cada vigilancia, más los umbrales en uso (valores `null`
+durante los primeros segundos tras arrancar). Abreviado:
 
 ```json
 {
@@ -493,7 +522,14 @@ durante los primeros segundos tras arrancar):
   "tareas": [
     {"tarea": "limpieza-docker", "resultado": "ok", "fin": "2026-10-18T04:31:07+02:00",
      "cada_s": 604800, "resumen": "🧹 Liberados 566 MB (12 imágenes)", "parada": false}
-  ]
+  ],
+  "accesos": {
+    "log": "/var/log/auth.log", "legible": true, "lineas": 1532, "ips_seguidas": 1, "fallos_ventana": 14,
+    "ultimos_accesos": [{"fecha": "2026-10-14T09:05:50+02:00", "usuario": "kuro", "ip": "100.90.92.37",
+                         "metodo": "password", "confianza": true}]
+  },
+  "servidor": "server-kuro",
+  "umbrales": {"cpu_pct": 85, "ram_libre_min_gb": 1.5, "disco_pct": 85, "fuerza_bruta": 10, "...": "..."}
 }
 ```
 
@@ -518,6 +554,7 @@ app/
 ├── store.py             AlertStore: activas + últimas 50 resueltas, en memoria
 ├── alerter.py           Telegram, cooldown, recordatorios y resolución
 ├── api.py               /api/health, /api/alerts, /api/status
+├── static/              la web: index.html, app.css, app.js (sin compilar)
 └── heads/
     ├── recursos.py      cabeza 1: psutil
     ├── contenedores.py  cabeza 2: Docker SDK
@@ -529,6 +566,7 @@ host/
 └── tareas/              tareas de usuario: informes, limpieza semanal e instalador
 tests/                   pytest (sin Docker, red ni discos: todo con dobles)
 assets/                  logo
+docs/                    captura de la web
 ```
 
 ## El nombre y el logo

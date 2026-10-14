@@ -1,0 +1,521 @@
+/* Cerbero: misma paleta que Dis y Caronte. Los tokens cambian con el tema.
+   Los colores de estado están validados (contraste ≥ 3:1 en cada superficie) y
+   nunca van solos: siempre con forma (✓ ▲ ✕) y texto. */
+
+:root {
+  --bg: #f8f8f8;
+  --surface: #ffffff;
+  --surface-2: #f1f1f3;
+  --border: #e4e4e7;
+  --text: #18181b;
+  --muted: #52525b;
+  --faint: #71717a;
+  --accent: #7c3aed;
+  --accent-ink: #6d28d9;
+  --accent-track: rgb(124 58 237 / 0.14);
+  --ok: #16a34a;
+  --warning: #a67c00;
+  --critical: #dc2626;
+  --fire: #ea580c;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #0a0a0a;
+    --surface: #111111;
+    --surface-2: #181818;
+    --border: #262626;
+    --text: #e5e5e5;
+    --muted: #a3a3a3;
+    --faint: #8a8a8a;
+    --accent: #8b5cf6;
+    --accent-ink: #a78bfa;
+    --accent-track: rgb(167 139 250 / 0.16);
+    --ok: #22c55e;
+    --warning: #eab308;
+    --critical: #ef4444;
+    --fire: #fb923c;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #0a0a0a;
+  --surface: #111111;
+  --surface-2: #181818;
+  --border: #262626;
+  --text: #e5e5e5;
+  --muted: #a3a3a3;
+  --faint: #8a8a8a;
+  --accent: #8b5cf6;
+  --accent-ink: #a78bfa;
+  --accent-track: rgb(167 139 250 / 0.16);
+  --ok: #22c55e;
+  --warning: #eab308;
+  --critical: #ef4444;
+  --fire: #fb923c;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+.mono,
+h2,
+.brand-name,
+.pill,
+.badge,
+table,
+.stat-value {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', ui-monospace, SFMono-Regular, Menlo,
+    Consolas, monospace;
+}
+
+a {
+  color: var(--accent-ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.small {
+  font-size: 12px;
+}
+.muted {
+  color: var(--muted);
+}
+.faint {
+  color: var(--faint);
+}
+
+/* --- Cabecera ------------------------------------------------------------------ */
+
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: inherit;
+  text-decoration: none;
+}
+.brand-name {
+  display: block;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.brand-sub {
+  display: block;
+  font-size: 12px;
+  color: var(--faint);
+}
+
+.top-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.icon-btn {
+  width: 34px;
+  height: 34px;
+  line-height: 1;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.banner {
+  margin: 12px 16px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--critical);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 14px;
+}
+
+/* --- Estructura ------------------------------------------------------------------ */
+
+main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 8px 16px 24px;
+}
+
+h2 {
+  margin: 22px 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.card h2 {
+  margin-top: 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  margin-top: 22px;
+}
+@media (min-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .grid .wide {
+    grid-column: 1 / -1;
+  }
+}
+
+.card {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 14px 16px 28px;
+  border-top: 1px solid var(--border);
+  color: var(--faint);
+  font-size: 12px;
+}
+
+.empty {
+  margin: 4px 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+/* --- Estados: forma + texto + color ----------------------------------------------- */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.badge.ok {
+  color: var(--ok);
+}
+.badge.warning {
+  color: var(--warning);
+}
+.badge.critical {
+  color: var(--critical);
+}
+.badge.unknown,
+.badge.info {
+  color: var(--faint);
+}
+
+/* --- Cabezas ------------------------------------------------------------------------ */
+
+.heads {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: inherit;
+  text-decoration: none;
+}
+.head:hover {
+  border-color: var(--accent);
+}
+.head.ok {
+  border-left-color: var(--ok);
+}
+.head.warning {
+  border-left-color: var(--warning);
+}
+.head.critical {
+  border-left-color: var(--critical);
+}
+.head-name {
+  font-weight: 600;
+}
+.head .badge {
+  align-self: flex-start;
+}
+.head-line {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* --- Alertas ---------------------------------------------------------------------- */
+
+.alerts {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.alerts li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 10px;
+  align-items: start;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.alerts li + li {
+  margin-top: 6px;
+}
+.alert-msg {
+  overflow-wrap: anywhere;
+}
+.alert-meta {
+  grid-column: 2;
+  color: var(--faint);
+  font-size: 12px;
+}
+.history li {
+  background: transparent;
+}
+
+.count {
+  color: var(--faint);
+  font-weight: 400;
+}
+
+/* --- Medidores -------------------------------------------------------------------- */
+
+.metric + .metric {
+  margin-top: 14px;
+}
+.metric-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin-bottom: 6px;
+}
+.metric-label {
+  font-weight: 600;
+}
+.metric-value {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.meter {
+  position: relative;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--accent-track);
+}
+.meter-fill {
+  height: 100%;
+  border-radius: 5px;
+  background: var(--accent);
+}
+.meter-fill.warning {
+  background: var(--warning);
+}
+.meter-fill.critical {
+  background: var(--critical);
+}
+/* El umbral: una marca vertical que asoma por encima y por debajo de la pista. */
+.meter-mark {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--text);
+  opacity: 0.55;
+}
+
+/* --- Cifras ------------------------------------------------------------------------ */
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.stat {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+.stat-label {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+.stat-value {
+  display: block;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+/* --- Tablas ------------------------------------------------------------------------ */
+
+.table-wrap {
+  overflow-x: auto;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+th,
+td {
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+th {
+  color: var(--faint);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+td.num,
+th.num {
+  text-align: right;
+}
+.cell-sub {
+  display: block;
+  color: var(--faint);
+  font-size: 11px;
+}
+
+td.nowrap {
+  white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+  table {
+    font-size: 12px;
+  }
+  th,
+  td {
+    padding: 6px 4px;
+  }
+  .hide-narrow {
+    display: none;
+  }
+}
+
+details summary {
+  margin-top: 10px;
+  color: var(--accent-ink);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+/* --- Filas (SMART, tareas) ---------------------------------------------------------- */
+
+.rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rows > li {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.rows > li:last-child {
+  border-bottom: 0;
+}
+.row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+.row-title {
+  font-weight: 600;
+}
+.row-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+@media (forced-colors: active) {
+  .meter-fill,
+  .meter-mark {
+    background: CanvasText;
+  }
+  .badge {
+    border-color: CanvasText;
+  }
+}
