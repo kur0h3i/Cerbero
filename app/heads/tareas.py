@@ -22,7 +22,7 @@ import os
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta, tzinfo
+from datetime import datetime, timedelta, tzinfo
 
 from ..alerter import Alerter
 from ..config import Settings
@@ -48,7 +48,7 @@ class TaskReport:
         return self.resultado == "ok"
 
 
-def parse_report(name: str, payload: dict, zone: tzinfo = UTC) -> TaskReport:
+def parse_report(name: str, payload: dict, zone: tzinfo) -> TaskReport:
     try:
         fin = datetime.fromisoformat(str(payload.get("fin")))
     except ValueError:
@@ -67,7 +67,7 @@ def parse_report(name: str, payload: dict, zone: tzinfo = UTC) -> TaskReport:
     )
 
 
-def read_dir(path: str, zone: tzinfo = UTC) -> list[TaskReport]:
+def read_dir(path: str, zone: tzinfo) -> list[TaskReport]:
     """Lee los informes de la carpeta (bloqueante: usar desde un hilo)."""
     reports = []
     for entry in sorted(os.scandir(path), key=lambda e: e.name):
