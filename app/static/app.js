@@ -519,6 +519,7 @@ function containerLevel(c) {
 }
 
 function renderContenedores(status) {
+  const open = document.querySelector('#contenedores details')?.open;
   const all = status.containers;
   if (!all.length) {
     replace('contenedores', empty('Sin contenedores (o Docker no responde).'));
@@ -562,7 +563,7 @@ function renderContenedores(status) {
     parts.push(h('p', { class: 'small' }, badge('ok', 'Todo en orden'), ' Ningún contenedor caído, unhealthy ni con reinicios.'));
   }
   parts.push(
-    h('details', {}, h('summary', {}, `Ver los ${all.length} contenedores`), table(headers, sorted.map(row))),
+    h('details', { open }, h('summary', {}, `Ver los ${all.length} contenedores`), table(headers, sorted.map(row))),
     h('p', { class: 'small faint' }, 'CPU, RAM y logs de cada contenedor están en Dis.'),
   );
   replace('contenedores', parts);
