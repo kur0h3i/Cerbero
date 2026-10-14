@@ -71,7 +71,7 @@ const fmt = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 1, useGroupi
 const num = (n) => (n == null ? '—' : fmt.format(n));
 // Los "GB" de la API son GiB; a partir de 1024 se pasa a TB con la misma base.
 const size = (gb) =>
-  gb == null ? '—' : gb >= 1024 ? `${fmt.format(gb / 1024)} TB` : `${fmt.format(gb)} GB`;
+  gb == null ? '—' : gb >= 1023.95 ? `${fmt.format(gb / 1024)} TB` : `${fmt.format(gb)} GB`;
 
 function ago(iso) {
   if (!iso) return 'nunca';
