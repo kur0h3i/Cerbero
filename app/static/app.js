@@ -437,9 +437,30 @@ function renderSmart(status) {
     const [level, text] = diskState(d);
     const limit = (d.protocolo || '').toLowerCase() === 'nvme' ? u.smart_temp_nvme_c : u.smart_temp_hdd_c;
     const facts = [];
-    if (d.temp_c != null) facts.push(`${num(d.temp_c)} °C (umbral ${num(limit)})`);
+    if (d.temp_c != null) {
+      facts.push(
+        severityOf(d.temp_c, limit) === 'critical'
+          ? h('strong', {}, `${num(d.temp_c)} °C, por encima del umbral de ${num(limit)}`)
+          : `${num(d.temp_c)} °C (umbral ${num(limit)})`,
+      );
+    }
     if (d.reasignados != null) {
-      facts.push(`sectores: ${d.reasignados} reasignados · ${d.pendientes ?? 0} pendientes · ${d.incorregibles ?? 0} incorregibles`);
+      const bad = [d.reasignados, d.pendientes ?? 0, d.incorregibles ?? 0];
+      const n = (v, label) => (v ? h('strong', {}, `${v} ${label}`) : `${v} ${label}`);
+      facts.push(
+        bad.every((v) => !v)
+          ? 'sin sectores dañados'
+          : h(
+              'span',
+              {},
+              'sectores: ',
+              n(bad[0], 'reasignados'),
+              ' · ',
+              n(bad[1], 'pendientes'),
+              ' · ',
+              n(bad[2], 'incorregibles'),
+            ),
+      );
     }
     if (d.desgaste_pct != null) facts.push(`desgaste ${d.desgaste_pct} % · reserva ${d.reserva_pct ?? '—'} %`);
     if (d.errores_medio) facts.push(`${d.errores_medio} errores de medio`);
