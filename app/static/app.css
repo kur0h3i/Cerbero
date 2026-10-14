@@ -285,8 +285,10 @@ footer {
 
 .head {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  flex-flow: row wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 8px;
   padding: 12px;
   border: 1px solid var(--border);
   border-left: 4px solid var(--border);
@@ -310,10 +312,8 @@ footer {
 .head-name {
   font-weight: 600;
 }
-.head .badge {
-  align-self: flex-start;
-}
 .head-line {
+  flex-basis: 100%;
   color: var(--muted);
   font-size: 13px;
 }
@@ -467,6 +467,12 @@ td.nowrap {
 }
 
 @media (max-width: 600px) {
+  .heads {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .head:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
   table {
     font-size: 12px;
   }
