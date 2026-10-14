@@ -5,7 +5,7 @@ from datetime import timedelta
 import httpx
 import pytest
 
-from app.alerter import Alerter, TelegramNotifier, format_message
+from app.alerter import MESSAGE_MAX, Alerter, TelegramNotifier, format_message
 from app.config import Settings
 from app.store import AlertStore
 from tests.conftest import FakeClock, FakeNotifier
@@ -31,6 +31,15 @@ def test_format_matches_the_agreed_layout(clock: FakeClock) -> None:
 def test_format_escapes_html(clock: FakeClock) -> None:
     text = format_message("🟡 [AVISO]", "accesos", "usuario <script>", "srv", clock())
     assert "&lt;script&gt;" in text
+
+
+def test_format_caps_long_messages(clock: FakeClock) -> None:
+    text = format_message("🔴 [CRÍTICO]", "accesos", "x" * 10_000, "srv", clock())
+    assert len(text) < 4096
+    assert "x" * (MESSAGE_MAX - 1) + "…\n" in text
+    # Telegram cuenta las entidades ya interpretadas: se recorta antes de escapar.
+    text = format_message("🔴 [CRÍTICO]", "accesos", "<" * 5000, "srv", clock())
+    assert text.count("&lt;") == MESSAGE_MAX - 1
 
 
 async def test_fire_sends_once_then_respects_cooldown(

@@ -45,6 +45,8 @@ HEAD_LABEL: dict[Head, str] = {
 }
 
 TIME_FMT = "%Y-%m-%d %H:%M:%S"
+# Telegram admite 4096 caracteres; esto deja sitio a la cabecera, «Activa desde» y «Servidor».
+MESSAGE_MAX = 3500
 
 
 def format_message(
@@ -56,6 +58,8 @@ def format_message(
     since: datetime | None = None,
 ) -> str:
     """Mensaje de Telegram (HTML): cabecera en negrita, mensaje y servidor · fecha."""
+    if len(message) > MESSAGE_MAX:
+        message = message[: MESSAGE_MAX - 1] + "…"
     title = f"{label} Cabeza: {HEAD_LABEL[head]}" if head else label
     lines = [f"<b>{html.escape(title)}</b>", f"Mensaje: {html.escape(message)}"]
     if since is not None:
