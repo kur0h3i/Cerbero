@@ -63,8 +63,12 @@ function replace(id, ...children) {
   }
 }
 
-const fmt = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 1 });
+// 'always': es-ES no agrupa los números de 4 cifras con el valor por defecto.
+const fmt = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 1, useGrouping: 'always' });
 const num = (n) => (n == null ? '—' : fmt.format(n));
+// Los "GB" de la API son GiB; a partir de 1024 se pasa a TB con la misma base.
+const size = (gb) =>
+  gb == null ? '—' : gb >= 1024 ? `${fmt.format(gb / 1024)} TB` : `${fmt.format(gb)} GB`;
 
 function ago(iso) {
   if (!iso) return 'nunca';
@@ -386,7 +390,7 @@ function renderRecursos(status) {
       status.ram_total_gb,
       ramMark,
       ramSeverity,
-      `${num(status.ram_free_gb)} GB disponibles de ${num(status.ram_total_gb)} · mínimo ${num(u.ram_libre_min_gb)} GB`,
+      `${num(status.ram_free_gb)} GB disponibles de ${num(status.ram_total_gb)} GB · mínimo ${num(u.ram_libre_min_gb)} GB`,
     ),
   ];
   for (const d of status.disks) {
@@ -406,7 +410,7 @@ function renderRecursos(status) {
           100,
           u.disco_pct,
           severityOf(d.percent, u.disco_pct),
-          `${num(d.percent)} % · ${num(d.free_gb)} GB libres de ${num(d.total_gb)}`,
+          `${num(d.percent)} % usado · ${size(d.free_gb)} libres de ${size(d.total_gb)}`,
         ),
       );
     }
