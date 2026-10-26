@@ -89,9 +89,12 @@
   document.addEventListener('visibilitychange', start);
   start();
 
-  document.getElementById('theme').addEventListener('click', () => {
+  const btn = document.getElementById('theme');
+  btn.setAttribute('aria-pressed', calm());
+  btn.addEventListener('click', () => {
     const on = !calm();
     root.toggleAttribute('data-calm', on);
+    btn.setAttribute('aria-pressed', on);
     store(on ? '1' : '0');
     start();
   });

@@ -197,6 +197,7 @@ async function refresh() {
   } catch (err) {
     console.warn('Cerbero no responde:', err);
     document.getElementById('offline').hidden = false;
+    document.getElementById('link').textContent = 'SIN ENLACE';
   }
   renderUpdated();
 }
@@ -217,6 +218,7 @@ function render({ health, alerts, status }) {
   renderTareas(status);
   renderContenedores(status);
   renderHistory(resolved);
+  renderHud(health, active, status);
 }
 
 function worst(alerts) {
@@ -278,28 +280,35 @@ function headSummary(id, status) {
   }
 }
 
+const HEAD_CODE = { recursos: 'R-01', contenedores: 'C-02', accesos: 'A-03', smart: 'S-04', tareas: 'T-05' };
+
+/** Estado de cada cabeza: nivel y texto corto. */
+function headState(id, health, active) {
+  const mine = active.filter((a) => a.head === id);
+  if (mine.length) return { level: worst(mine), text: `${mine.length} alerta${mine.length > 1 ? 's' : ''}` };
+  if (health.heads[id] === false) return { level: 'unknown', text: 'Ciega' };
+  return { level: 'ok', text: null };
+}
+
 function renderHeads(health, active, status) {
-  const cards = HEADS.map(({ id, name, section }) => {
-    const mine = active.filter((a) => a.head === id);
-    const healthy = health.heads[id];
-    let level = 'ok';
-    let text;
-    if (mine.length) {
-      level = worst(mine);
-      text = `${mine.length} alerta${mine.length > 1 ? 's' : ''}`;
-    } else if (healthy === false) {
-      level = 'unknown';
-      text = 'Ciega';
-    }
+  const items = HEADS.map(({ id, name, section }) => {
+    const { level, text } = headState(id, health, active);
     return h(
-      'a',
-      { class: `head ${LEVEL[level].cls}`, href: `#${section}` },
-      h('span', { class: 'head-name' }, name),
-      badge(level, text),
-      h('span', { class: 'head-line' }, headSummary(id, status)),
+      'li',
+      { class: LEVEL[level].cls },
+      h(
+        'a',
+        { href: `#${section}` },
+        h('span', { class: 'c' }, HEAD_CODE[id]),
+        h('span', { class: 'n' }, name),
+        h('span', { class: 'led' }),
+        h('span', { class: 'd' }, badge(level, text), ' ', headSummary(id, status)),
+      ),
     );
   });
-  replace('heads', cards);
+  const blind = HEADS.filter(({ id }) => headState(id, health, active).level === 'unknown').length;
+  document.getElementById('heads-count').textContent = `${HEADS.length - blind} en línea`;
+  replace('heads', items);
 }
 
 function alertItem(a, history) {
@@ -321,7 +330,7 @@ function alertItem(a, history) {
 }
 
 function renderActive(active) {
-  document.getElementById('active-count').textContent = active.length ? `(${active.length})` : '';
+  document.getElementById('active-count').textContent = active.length ? `${active.length}` : '';
   const sorted = [...active].sort(
     (a, b) => SEVERITY[b.level] - SEVERITY[a.level] || b.timestamp.localeCompare(a.timestamp),
   );
@@ -568,6 +577,88 @@ function renderContenedores(status) {
   replace('contenedores', parts);
 }
 
+// --- HUD: reloj, cinta, carga, mapa y radar (solo presentan datos que ya llegan) -------
+
+const SVG = 'http://www.w3.org/2000/svg';
+const cpuHist = [];
+const CPU_BARS = 22;
+
+function svg(tag, attrs, text) {
+  const el = document.createElementNS(SVG, tag);
+  for (const [k, v] of Object.entries(attrs || {})) el.setAttribute(k, v);
+  if (text) el.textContent = text;
+  return el;
+}
+
+function tickClock() {
+  document.getElementById('clk').textContent = new Date().toLocaleTimeString('es-ES');
+}
+
+function renderHud(health, active, status) {
+  document.getElementById('link').textContent = 'ENLACE SEGURO';
+  document.getElementById('ticker').textContent = [
+    status.servidor,
+    active.length ? `${active.length} alertas activas` : 'sin alertas activas',
+    ...HEADS.map(({ id, name }) => `${name}: ${headSummary(id, status)}`),
+  ].join(' · ');
+
+  if (status.cpu_pct != null) cpuHist.push(status.cpu_pct);
+  while (cpuHist.length > CPU_BARS) cpuHist.shift();
+  replace(
+    'bars',
+    Array.from({ length: CPU_BARS }, (_, i) => {
+      const v = cpuHist[i - (CPU_BARS - cpuHist.length)];
+      const bar = h('span');
+      bar.style.height = `${v == null ? 3 : Math.max(3, Math.min(100, v))}%`;
+      return bar;
+    }),
+  );
+
+  renderMap(health, active);
+  renderRadar(active);
+}
+
+const STROKE = { ok: '#00f0ff', warning: '#fcee0a', critical: '#ff2e88', unknown: '#5f8fa3' };
+
+function renderMap(health, active) {
+  const [cx, cy] = [180, 110];
+  const edges = [];
+  const nodes = [svg('circle', { cx, cy, r: 22, fill: '#00f0ff22', stroke: '#00f0ff', 'stroke-width': 2 })];
+  nodes.push(svg('text', { x: cx, y: cy + 4, 'text-anchor': 'middle' }, 'CERBERO'));
+  HEADS.forEach(({ id, name }, i) => {
+    const ang = -Math.PI / 2 + (i * 2 * Math.PI) / HEADS.length;
+    const [x, y] = [cx + 125 * Math.cos(ang), cy + 78 * Math.sin(ang)];
+    const level = headState(id, health, active).level;
+    const color = STROKE[level] || STROKE.unknown;
+    edges.push(svg('line', { class: `edge ${level}`, x1: cx, y1: cy, x2: x, y2: y, stroke: color }));
+    nodes.push(
+      svg('rect', { x: x - 46, y: y - 12, width: 92, height: 24, fill: '#050a14', stroke: color }),
+      svg('text', { x, y: y + 4, 'text-anchor': 'middle' }, name),
+    );
+  });
+  const map = document.getElementById('map');
+  map.replaceChildren(svg('g', {}, ''), svg('g', { class: 'node' }));
+  map.firstChild.append(...edges);
+  map.lastChild.append(...nodes);
+}
+
+function renderRadar(active) {
+  const radar = document.getElementById('radar');
+  document.getElementById('radar-note').textContent = active.length ? `${active.length} señales` : 'despejado';
+  replace(
+    'radar',
+    active.slice(0, 8).map((a, i) => {
+      const ang = i * 2.4 + 0.6;
+      const r = 18 + ((i * 17) % 28);
+      const blip = h('i', { class: a.level });
+      blip.style.left = `${50 + r * Math.cos(ang)}%`;
+      blip.style.top = `${50 + r * Math.sin(ang)}%`;
+      blip.style.animationDelay = `${(i * 0.4) % 2}s`;
+      return blip;
+    }),
+  );
+}
+
 // --- Ciclo de refresco ---------------------------------------------------------
 
 let timer = null;
@@ -588,4 +679,6 @@ document.addEventListener('visibilitychange', () => {
   else tick();
 });
 setInterval(renderUpdated, 1000);
+tickClock();
+setInterval(tickClock, 1000);
 tick();
