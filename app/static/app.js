@@ -568,22 +568,7 @@ function renderContenedores(status) {
   replace('contenedores', parts);
 }
 
-// --- Tema y ciclo de refresco ---------------------------------------------------------
-
-function setupTheme() {
-  document.getElementById('theme').addEventListener('click', () => {
-    const root = document.documentElement;
-    const dark =
-      root.dataset.theme === 'dark' ||
-      (!root.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches);
-    root.dataset.theme = dark ? 'light' : 'dark';
-    try {
-      localStorage.setItem('cerbero_theme', root.dataset.theme);
-    } catch (e) {
-      // Sin almacenamiento: el tema dura lo que la pestaña.
-    }
-  });
-}
+// --- Ciclo de refresco ---------------------------------------------------------
 
 let timer = null;
 
@@ -603,5 +588,4 @@ document.addEventListener('visibilitychange', () => {
   else tick();
 });
 setInterval(renderUpdated, 1000);
-setupTheme();
 tick();

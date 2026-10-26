@@ -1,60 +1,33 @@
-/* Cerbero: misma paleta que Dis y Caronte. Los tokens cambian con el tema.
+/* Cerbero: estilo «Cerbero Cyber» (paquete compartido con Dis, Caronte y Minos), solo oscuro.
+   Modo sereno por defecto (html[data-calm]): sin brillos ni animación; el botón ◐ activa el completo.
    Los colores de estado están validados (contraste ≥ 3:1 en cada superficie) y
    nunca van solos: siempre con forma (✓ ▲ ✕) y texto. */
 
+@font-face{font-family:'Orbitron';font-weight:500;font-style:normal;font-display:swap;src:url('/static/fonts/Orbitron-500.ttf') format('truetype')}
+@font-face{font-family:'Orbitron';font-weight:800;font-style:normal;font-display:swap;src:url('/static/fonts/Orbitron-800.ttf') format('truetype')}
+@font-face{font-family:'Rajdhani';font-weight:500;font-style:normal;font-display:swap;src:url('/static/fonts/Rajdhani-500.ttf') format('truetype')}
+@font-face{font-family:'Rajdhani';font-weight:700;font-style:normal;font-display:swap;src:url('/static/fonts/Rajdhani-700.ttf') format('truetype')}
+@font-face{font-family:'Share Tech Mono';font-weight:400;font-style:normal;font-display:swap;src:url('/static/fonts/ShareTechMono-400.ttf') format('truetype')}
+
 :root {
-  --bg: #f8f8f8;
-  --surface: #ffffff;
-  --surface-2: #f1f1f3;
-  --border: #e4e4e7;
-  --text: #18181b;
-  --muted: #52525b;
-  --faint: #71717a;
-  --accent: #7c3aed;
-  --accent-ink: #6d28d9;
-  --accent-track: rgb(124 58 237 / 0.14);
-  --ok: #16a34a;
-  --warning: #a67c00;
-  --critical: #dc2626;
-  --fire: #ea580c;
-  color-scheme: light;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --bg: #0a0a0a;
-    --surface: #111111;
-    --surface-2: #181818;
-    --border: #262626;
-    --text: #e5e5e5;
-    --muted: #a3a3a3;
-    --faint: #8a8a8a;
-    --accent: #8b5cf6;
-    --accent-ink: #a78bfa;
-    --accent-track: rgb(167 139 250 / 0.16);
-    --ok: #22c55e;
-    --warning: #eab308;
-    --critical: #ef4444;
-    --fire: #fb923c;
-    color-scheme: dark;
-  }
-}
-
-:root[data-theme='dark'] {
-  --bg: #0a0a0a;
-  --surface: #111111;
-  --surface-2: #181818;
-  --border: #262626;
-  --text: #e5e5e5;
-  --muted: #a3a3a3;
-  --faint: #8a8a8a;
-  --accent: #8b5cf6;
-  --accent-ink: #a78bfa;
-  --accent-track: rgb(167 139 250 / 0.16);
-  --ok: #22c55e;
-  --warning: #eab308;
-  --critical: #ef4444;
-  --fire: #fb923c;
+  --bg: #03050c;
+  --surface: #07101c;
+  --surface-2: #0a1a28;
+  --border: #0b4f5c;
+  --text: #d6f7ff;
+  --muted: #8fb5c4;
+  --faint: #6f9bad;
+  --accent: #00f0ff;
+  --accent-ink: #00f0ff;
+  --accent-track: rgb(0 240 255 / 0.14);
+  --ok: #2dff9a;
+  --warning: #fcee0a;
+  --critical: #ff2e88;
+  --fire: #ff8a3d;
+  --mg: #ff2e88;
+  --fd: 'Orbitron', system-ui, sans-serif;
+  --fb: 'Rajdhani', system-ui, sans-serif;
+  --fm: 'Share Tech Mono', ui-monospace, Consolas, monospace;
   color-scheme: dark;
 }
 
@@ -70,22 +43,24 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
-    sans-serif;
-  font-size: 15px;
+  font-family: var(--fb);
+  font-size: 17px;
+  position: relative;
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
 }
 
 .mono,
-h2,
-.brand-name,
 .pill,
 .badge,
 table,
 .stat-value {
-  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', ui-monospace, SFMono-Regular, Menlo,
-    Consolas, monospace;
+  font-family: var(--fm);
+}
+
+h2,
+.brand-name {
+  font-family: var(--fd);
 }
 
 a {
@@ -517,5 +492,94 @@ details summary {
   }
   .badge {
     border-color: CanvasText;
+  }
+}
+
+/* --- Cerbero Cyber ------------------------------------------------------------------ */
+
+.top,
+main,
+footer {
+  position: relative;
+  z-index: 1;
+}
+.top {
+  background: #050a14d9;
+}
+.brand-name {
+  letter-spacing: 0.16em;
+  color: #fff;
+  text-shadow: 0 0 18px var(--accent);
+}
+h2 {
+  letter-spacing: 0.22em;
+  color: var(--accent);
+}
+.card,
+.head,
+.alerts li,
+.stat,
+.icon-btn,
+.pill,
+.badge,
+.banner {
+  border-radius: 0;
+}
+.card {
+  position: relative;
+  background: #050a14d9;
+}
+.card::before,
+.card::after {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--accent);
+  filter: drop-shadow(0 0 4px var(--accent));
+}
+.card::before {
+  top: -1px;
+  left: -1px;
+  border-width: 2px 0 0 2px;
+}
+.card::after {
+  right: -1px;
+  bottom: -1px;
+  border-width: 0 2px 2px 0;
+}
+tr:hover td {
+  background: #00f0ff10;
+}
+.meter,
+.meter-fill {
+  border-radius: 0;
+}
+
+/* Modo sereno (el de por defecto): lo que molesta al leer datos. */
+html[data-calm] .brand-name {
+  text-shadow: none;
+}
+html[data-calm] .card::before,
+html[data-calm] .card::after {
+  filter: none;
+}
+#bg {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+html[data-calm] #bg {
+  opacity: 0.14;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
   }
 }
