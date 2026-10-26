@@ -1,79 +1,101 @@
 <!doctype html>
-<html lang="es">
+<html lang="es" data-calm>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light dark">
+  <meta name="color-scheme" content="dark">
   <title>Cerbero</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/app.css">
-  <!-- El tema se aplica antes de pintar, para que no parpadee. -->
-  <script src="/static/theme.js"></script>
+  <script src="/static/cyber.js" defer></script>
   <script src="/static/app.js" defer></script>
 </head>
 <body>
-  <header class="top">
-    <a class="brand" href="/" aria-label="Cerbero, inicio">
-      <img src="/logo.svg" alt="" width="44" height="44">
-      <span>
-        <span class="brand-name">Cerbero</span>
-        <span class="brand-sub" id="server">server-kuro</span>
-      </span>
-    </a>
-    <div class="top-right">
-      <span id="global" class="pill" role="status">cargando…</span>
-      <span id="updated" class="faint small" aria-live="polite"></span>
-      <button id="theme" class="icon-btn" type="button" aria-label="Cambiar entre tema claro y oscuro" title="Tema claro / oscuro">◐</button>
+  <div class="os">
+    <div class="bar" role="status">
+      <span><span class="led" id="link-led"></span> <span id="link">ENLACE</span></span>
+      <span id="clk">--:--:--</span>
+      <div class="t"><span id="ticker">cargando…</span></div>
     </div>
-  </header>
 
-  <div id="offline" class="banner" role="alert" hidden>
-    Sin conexión con la API de Cerbero. Se muestran los últimos datos; reintentando…
+    <header class="top">
+      <a class="brand" href="/" aria-label="Cerbero, inicio">
+        <img src="/logo.svg" alt="" width="64" height="64">
+        <span>
+          <span class="brand-name">CERBERO</span>
+          <span class="brand-sub">vigilancia de <span id="server">server-kuro</span></span>
+        </span>
+      </a>
+      <div class="top-right">
+        <span id="global" class="pill" role="status">cargando…</span>
+        <span id="updated" class="faint small" aria-live="polite"></span>
+        <button id="theme" class="icon-btn" type="button" aria-label="Cambiar entre modo sereno y modo completo" title="Modo sereno / completo">MODO SERENO</button>
+      </div>
+    </header>
+
+    <div id="offline" class="banner" role="alert" hidden>
+      Sin conexión con la API de Cerbero. Se muestran los últimos datos; reintentando…
+    </div>
+
+    <div class="shell">
+      <nav class="panel" aria-labelledby="h-heads">
+        <h2 id="h-heads">CABEZAS <i id="heads-count"></i></h2>
+        <ul id="heads" class="mods"></ul>
+        <h2 class="gap">CARGA <i>cpu</i></h2>
+        <div class="bars" id="bars" role="img" aria-label="Historial reciente de uso de CPU"></div>
+      </nav>
+
+      <main>
+        <section class="panel" aria-labelledby="h-active">
+          <h2 id="h-active">ALERTAS ACTIVAS <i id="active-count"></i></h2>
+          <ul id="active" class="alerts"></ul>
+        </section>
+
+        <section class="panel viz" aria-labelledby="h-map">
+          <div>
+            <h2 id="h-map">MAPA DE CABEZAS</h2>
+            <svg id="map" viewBox="0 0 360 220" role="img" aria-label="Cerbero y el estado de sus cinco cabezas"></svg>
+          </div>
+          <div>
+            <h2>ESCANEO <i id="radar-note"></i></h2>
+            <div class="radar" id="radar" role="img" aria-label="Una señal por alerta activa"></div>
+          </div>
+        </section>
+
+        <div class="grid">
+          <section id="sec-recursos" class="card" aria-labelledby="h-recursos">
+            <h2 id="h-recursos">RECURSOS</h2>
+            <div id="recursos"></div>
+          </section>
+          <section id="sec-smart" class="card" aria-labelledby="h-smart">
+            <h2 id="h-smart">DISCOS (SMART)</h2>
+            <div id="smart"></div>
+          </section>
+          <section id="sec-accesos" class="card" aria-labelledby="h-accesos">
+            <h2 id="h-accesos">ACCESOS SSH</h2>
+            <div id="accesos"></div>
+          </section>
+          <section id="sec-tareas" class="card" aria-labelledby="h-tareas">
+            <h2 id="h-tareas">TAREAS DEL HOST</h2>
+            <div id="tareas"></div>
+          </section>
+          <section id="sec-contenedores" class="card wide" aria-labelledby="h-contenedores">
+            <h2 id="h-contenedores">CONTENEDORES</h2>
+            <div id="contenedores"></div>
+          </section>
+        </div>
+      </main>
+
+      <aside class="panel" aria-labelledby="h-history">
+        <h2 id="h-history">CONSOLA <i>últimas 50 resueltas</i></h2>
+        <ul id="history" class="alerts history"></ul>
+      </aside>
+    </div>
+
+    <footer>
+      <span>Solo lectura · se actualiza cada 10 s</span>
+      <span><a href="/api/docs">API</a> · <a href="https://github.com/kur0h3i/Cerbero">Código</a></span>
+    </footer>
   </div>
-
-  <main>
-    <section aria-labelledby="h-heads">
-      <h2 id="h-heads">Vigilancia</h2>
-      <div id="heads" class="heads"></div>
-    </section>
-
-    <section aria-labelledby="h-active">
-      <h2 id="h-active">Alertas activas <span id="active-count" class="count"></span></h2>
-      <ul id="active" class="alerts"></ul>
-    </section>
-
-    <div class="grid">
-      <section id="sec-recursos" class="card" aria-labelledby="h-recursos">
-        <h2 id="h-recursos">Recursos</h2>
-        <div id="recursos"></div>
-      </section>
-      <section id="sec-smart" class="card" aria-labelledby="h-smart">
-        <h2 id="h-smart">Discos (SMART)</h2>
-        <div id="smart"></div>
-      </section>
-      <section id="sec-accesos" class="card" aria-labelledby="h-accesos">
-        <h2 id="h-accesos">Accesos SSH</h2>
-        <div id="accesos"></div>
-      </section>
-      <section id="sec-tareas" class="card" aria-labelledby="h-tareas">
-        <h2 id="h-tareas">Tareas del host</h2>
-        <div id="tareas"></div>
-      </section>
-      <section id="sec-contenedores" class="card wide" aria-labelledby="h-contenedores">
-        <h2 id="h-contenedores">Contenedores</h2>
-        <div id="contenedores"></div>
-      </section>
-    </div>
-
-    <section aria-labelledby="h-history">
-      <h2 id="h-history">Histórico <span class="faint small">(últimas 50 resueltas)</span></h2>
-      <ul id="history" class="alerts history"></ul>
-    </section>
-  </main>
-
-  <footer>
-    <span>Solo lectura · se actualiza cada 10 s</span>
-    <span><a href="/api/docs">API</a> · <a href="https://github.com/kur0h3i/Cerbero">Código</a></span>
-  </footer>
 </body>
 </html>

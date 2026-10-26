@@ -256,7 +256,7 @@ def test_web_is_served_with_strict_headers(client: TestClient) -> None:
     assert "<title>Cerbero</title>" in resp.text
     csp = resp.headers["content-security-policy"]
     assert "script-src 'self'" in csp and "frame-ancestors 'none'" in csp
-    for path in ("/static/app.js", "/static/app.css", "/static/theme.js", "/logo.svg"):
+    for path in ("/static/app.js", "/static/app.css", "/static/cyber.js", "/logo.svg"):
         asset = client.get(path)
         assert asset.status_code == 200, path
         assert asset.headers["x-content-type-options"] == "nosniff"
